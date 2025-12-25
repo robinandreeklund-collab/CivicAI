@@ -13696,14 +13696,95 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
             # ===========================================================================
             
             logger.info(f"[WS-Debate] STEP 1: OneSeek generating raw contribution for round {round_num}...")
+            logger.info(f"[ONESEEK-DEBUG] ================================================================================")
+            logger.info(f"[ONESEEK-DEBUG] STEP 1: GENERATING RAW CONTRIBUTION")
+            logger.info(f"[ONESEEK-DEBUG] Round: {round_num}")
             
             await websocket.send_json({
                 "type": "thinking",
                 "message": f"[tänker...] OneSeek formulerar sitt inledande bidrag för runda {round_num}..."
             })
             
-            # Build context for raw contribution (same as before, but WITHOUT tavily_data)
-            # This will be used in STEP 1 to generate the raw contribution
+            # Build context for raw contribution (same as final, but this is for internal draft)
+            # We'll build chain_so_far and other contexts here (same as later)
+            # For now, build minimal context needed for raw contribution
+            
+            # Build chain_so_far for raw contribution
+            raw_chain_so_far = ""
+            if external_responses:
+                for ext_resp in external_responses:
+                    if ext_resp.get('success', False):
+                        raw_chain_so_far += f"**{ext_resp['agent'].upper()}**: {ext_resp['response']}\n\n"
+            else:
+                raw_chain_so_far = "(Du är först i denna runda)"
+            
+            # Load raw contribution prompt template based on round
+            if round_num == 1:
+                raw_template_key = 'round1_raw'
+            elif round_num == 2:
+                raw_template_key = 'round2_raw'
+            else:
+                raw_template_key = 'final_raw'
+            
+            raw_template = loaded_prompts.get(raw_template_key) if loaded_prompts else None
+            logger.info(f"[ONESEEK-DEBUG] Prompt Template: {raw_template_key}")
+            logger.info(f"[ONESEEK-DEBUG] Temperature: {loaded_temperatures.get(raw_template_key, 0.8)}")
+            logger.info(f"[ONESEEK-DEBUG] Max Tokens: 400")
+            
+            if not raw_template:
+                # Fallback to simple raw prompt if template not found
+                raw_template = f"""Du är ONESEEK. Skriv ett kort, naturligt utkast (150-250 ord) för runda {round_num}.
+
+DEBATTFRÅGA: {{clean_question}}
+
+Kontext från debatten:
+{{chain_so_far}}
+
+Skriv ditt inledande resonemang utan att fokusera på källor eller data än. Detta är bara ett utkast."""
+            
+            # Replace parameters in raw template
+            raw_prompt = raw_template.replace('{clean_question}', clean_question).replace('{chain_so_far}', raw_chain_so_far).replace('{round_num}', str(round_num))
+            
+            # Add tavily_data placeholder (empty for raw)
+            raw_prompt = raw_prompt.replace('{tavily_data}', '(Råt bidrag - ingen data än)')
+            
+            # Generate raw contribution
+            raw_contribution = ""
+            try:
+                payload = {
+                    "messages": [
+                        {"role": "system", "content": "Du är ONESEEK - skriv ett naturligt, kreativt utkast. Fokusera på ditt resonemang, inte källor."},
+                        {"role": "user", "content": raw_prompt}
+                    ],
+                    "max_tokens": 400,
+                    "temperature": loaded_temperatures.get(raw_template_key, 0.8),
+                }
+                
+                server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                llm_response = requests.post(
+                    f"{server_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=30,
+                )
+                llm_response.raise_for_status()
+                result = llm_response.json()
+                
+                if 'choices' in result and len(result['choices']) > 0:
+                    raw_contribution = result['choices'][0].get('message', {}).get('content', '').strip()
+                else:
+                    raw_contribution = result.get('content', '').strip()
+                
+                # Log full raw contribution
+                logger.info(f"[ONESEEK-DEBUG] ================================================================================")
+                logger.info(f"[ONESEEK-DEBUG] ========== RAW CONTRIBUTION GENERATED ==========")
+                logger.info(f"[ONESEEK-DEBUG] Length: {len(raw_contribution)} chars (~{len(raw_contribution.split())} words)")
+                logger.info(f"[ONESEEK-DEBUG] Content:")
+                logger.info(f"[ONESEEK-DEBUG] {raw_contribution}")
+                logger.info(f"[ONESEEK-DEBUG] ================================================")
+                
+            except Exception as e:
+                logger.error(f"[WS-Debate] Error generating raw contribution: {e}")
+                raw_contribution = f"Jag vill diskutera {clean_question} genom att analysera olika perspektiv."
             
             # ===========================================================================
             # DATA REASONING STEP - STEP 2: Analyze raw contribution and fetch data
@@ -13711,6 +13792,14 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
             # ===========================================================================
             
             logger.info(f"[WS-Debate] STEP 2: DATA REASONING will analyze raw contribution for round {round_num}...")
+            logger.info(f"[ONESEEK-DEBUG] ================================================================================")
+            logger.info(f"[ONESEEK-DEBUG] STEP 2: DATA REASONING ANALYSIS")
+            logger.info(f"[ONESEEK-DEBUG] Analyzing raw contribution for data needs")
+            logger.info(f"[ONESEEK-DEBUG] Prompt Template: data_reasoning")
+            logger.info(f"[ONESEEK-DEBUG] Temperature: {loaded_temperatures.get('data_reasoning', 0.75)}")
+            logger.info(f"[ONESEEK-DEBUG] Raw contribution length: {len(raw_contribution)} chars")
+            logger.info(f"[ONESEEK-DEBUG] ================================================================================")
+
             
             await websocket.send_json({
                 "type": "thinking",
@@ -13768,7 +13857,7 @@ Om ingen ny data behövs: Säg "INGEN NY DATA BEHÖVS" och förklara varför.
 
 Skriv kort och strukturerat – börja direkt."""
             
-            data_reasoning_prompt = data_reasoning_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{data_reasoning_context}', data_reasoning_context).replace('{data_reasoning_previous_context}', data_reasoning_previous_context)
+            data_reasoning_prompt = data_reasoning_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{data_reasoning_context}', data_reasoning_context).replace('{data_reasoning_previous_context}', data_reasoning_previous_context).replace('{raw_contribution}', raw_contribution)
             
             # Generate Data Reasoning
             data_reasoning_text = ""
@@ -13832,14 +13921,21 @@ Skriv kort och strukturerat – börja direkt."""
                         
                         if queries:
                             logger.info(f"[WS-Debate] DATA REASONING: Found {len(queries)} Tavily queries to execute")
+                            logger.info(f"[ONESEEK-DEBUG] ========== TAVILY QUERIES EXTRACTED ==========")
+                            logger.info(f"[ONESEEK-DEBUG] Found {len(queries)} queries:")
+                            for i, q in enumerate(queries, 1):
+                                logger.info(f"[ONESEEK-DEBUG]   {i}. \"{q}\"")
+                            logger.info(f"[ONESEEK-DEBUG] =============================================")
                             
                             await websocket.send_json({
                                 "type": "thinking",
                                 "message": f"[tänker...] Hämtar realtidsdata via Tavily ({len(queries)} sökningar)..."
                             })
                             
+                            logger.info(f"[ONESEEK-DEBUG] ========== TAVILY SEARCH RESULTS ==========")
                             for query in queries[:MAX_TAVILY_SEARCHES]:  # Use configured limit
                                 logger.info(f"[WS-Debate] Executing Tavily search: {query}")
+                                logger.info(f"[ONESEEK-DEBUG] Query: \"{query[:80]}...\"" if len(query) > 80 else f"[ONESEEK-DEBUG] Query: \"{query}\"")
                                 
                                 # Execute search with Swedish priority using advanced function
                                 # Use TAVILY_API_KEY from config (admin dashboard or env var)
@@ -13858,6 +13954,11 @@ Skriv kort och strukturerat – börja direkt."""
                                         'summary': summary
                                     })
                                     logger.info(f"[WS-Debate] Tavily search successful for: {query}")
+                                    logger.info(f"[ONESEEK-DEBUG]   Status: Success")
+                                    # Count sources
+                                    sources_count = len(result.get('results', [])) if isinstance(result, dict) else 0
+                                    logger.info(f"[ONESEEK-DEBUG]   Sources: {sources_count}")
+                                    logger.info(f"[ONESEEK-DEBUG]   Summary length: {len(summary)} chars")
                         
                         # Format injected data (tavily_results is now accessible here)
                         if tavily_results:
@@ -13866,6 +13967,8 @@ Skriv kort och strukturerat – börja direkt."""
                                 injected_data += f"**Sökning {i}:** {res['query']}\n{res['summary']}\n\n"
                             
                             logger.info(f"[WS-Debate] DATA REASONING: Injected {len(tavily_results)} Tavily results into main prompt")
+                            logger.info(f"[ONESEEK-DEBUG] Total injected data: {len(injected_data)} chars from {len(tavily_results)} searches")
+                            logger.info(f"[ONESEEK-DEBUG] =========================================")
                             logger.info(f"[WS-Debate] ========== TAVILY DATA INJECTED (PREVIEW) ==========")
                             # Log first 500 chars of injected data for debugging
                             logger.info(f"[WS-Debate] {injected_data[:500]}...")
@@ -14135,6 +14238,22 @@ Börja direkt med öppningen – ingen extra inledning."""
             main_answer_temperature = loaded_temperatures.get(template_key, 0.7)
             logger.info(f"[WS-Debate] Using temperature {main_answer_temperature} for {template_key}")
             
+            # ===========================================================================
+            # STEP 3: Generate FINAL CONTRIBUTION with raw contribution and Tavily data
+            # ===========================================================================
+            logger.info(f"[ONESEEK-DEBUG] ================================================================================")
+            logger.info(f"[ONESEEK-DEBUG] STEP 3: GENERATING FINAL CONTRIBUTION")
+            logger.info(f"[ONESEEK-DEBUG] Round: {round_num}")
+            logger.info(f"[ONESEEK-DEBUG] Prompt Template: {template_key}")
+            logger.info(f"[ONESEEK-DEBUG] Temperature: {loaded_temperatures.get(template_key, 0.7)}")
+            logger.info(f"[ONESEEK-DEBUG] Max Tokens: 600")
+            logger.info(f"[ONESEEK-DEBUG] Parameters provided:")
+            logger.info(f"[ONESEEK-DEBUG]   ✅ raw_contribution: {len(raw_contribution)} chars")
+            logger.info(f"[ONESEEK-DEBUG]   ✅ tavily_data: {len(tavily_data_formatted)} chars ({len(tavily_results) if tavily_results else 0} search results)")
+            logger.info(f"[ONESEEK-DEBUG]   ✅ chain_so_far: {len(chain_so_far)} chars")
+            logger.info(f"[ONESEEK-DEBUG]   ✅ clean_question: provided")
+            logger.info(f"[ONESEEK-DEBUG] ================================================================================")
+            
             # Prepare Tavily data for injection (empty if no data)
             tavily_data_formatted = ""
             if injected_data:
@@ -14143,8 +14262,8 @@ Börja direkt med öppningen – ingen extra inledning."""
             else:
                 tavily_data_formatted = "(Ingen realtidsdata hämtad)"
             
-            # Replace all parameters including {tavily_data}
-            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)").replace('{tavily_data}', tavily_data_formatted)
+            # Replace all parameters including {tavily_data} AND {raw_contribution}
+            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)").replace('{tavily_data}', tavily_data_formatted).replace('{raw_contribution}', raw_contribution)
             
             oneseek_context = oneseek_main_prompt
             
