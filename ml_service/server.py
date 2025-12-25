@@ -15509,10 +15509,14 @@ async def update_debate_prompt(prompt_type: str, request: Request):
     Validates prompt type and saves to JSON file.
     """
     try:
+        # Log the incoming request for debugging
+        logger.info(f"[ADMIN] Received update request for prompt type: '{prompt_type}' (type: {type(prompt_type).__name__}, length: {len(prompt_type)})")
+        
         data = await request.json()
         content = data.get("content", "")
         
         if not content:
+            logger.warning(f"[ADMIN] Empty content provided for prompt type: '{prompt_type}'")
             return JSONResponse(
                 status_code=400,
                 content={"error": "Content cannot be empty"}
@@ -15525,10 +15529,14 @@ async def update_debate_prompt(prompt_type: str, request: Request):
             "round_summary", "voting", "closing"
         ]
         
+        logger.info(f"[ADMIN] Validating '{prompt_type}' against valid types: {valid_types}")
+        logger.info(f"[ADMIN] Is '{prompt_type}' in valid_types? {prompt_type in valid_types}")
+        
         if prompt_type not in valid_types:
+            logger.error(f"[ADMIN] INVALID prompt type '{prompt_type}' - not in valid types list")
             return JSONResponse(
                 status_code=400,
-                content={"error": f"Invalid prompt type. Must be one of: {', '.join(valid_types)}"}
+                content={"error": f"Invalid prompt type '{prompt_type}'. Must be one of: {', '.join(valid_types)}"}
             )
         
         prompts_file = os.path.join(os.path.dirname(__file__), '../datasets/debate_prompts/prompts.json')
