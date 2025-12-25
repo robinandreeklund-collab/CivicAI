@@ -14242,6 +14242,11 @@ Börja direkt med öppningen – ingen extra inledning."""
             # ===========================================================================
             logger.info(f"[ONESEEK-DEBUG] ================================================================================")
             logger.info(f"[ONESEEK-DEBUG] STEP 3: GENERATING FINAL CONTRIBUTION")
+            # Prepare Tavily data for injection (empty if no data)
+            tavily_data_formatted = ""
+            if injected_data:
+                tavily_data_formatted = injected_data
+            
             logger.info(f"[ONESEEK-DEBUG] Round: {round_num}")
             logger.info(f"[ONESEEK-DEBUG] Prompt Template: {template_key}")
             logger.info(f"[ONESEEK-DEBUG] Temperature: {loaded_temperatures.get(template_key, 0.7)}")
@@ -14252,11 +14257,6 @@ Börja direkt med öppningen – ingen extra inledning."""
             logger.info(f"[ONESEEK-DEBUG]   ✅ chain_so_far: {len(chain_so_far)} chars")
             logger.info(f"[ONESEEK-DEBUG]   ✅ clean_question: provided")
             logger.info(f"[ONESEEK-DEBUG] ================================================================================")
-            
-            # Prepare Tavily data for injection (empty if no data)
-            tavily_data_formatted = ""
-            if injected_data:
-                tavily_data_formatted = injected_data
                 logger.info(f"[WS-Debate] Prepared Tavily data for injection ({len(injected_data)} chars)")
             else:
                 tavily_data_formatted = "(Ingen realtidsdata hämtad)"
