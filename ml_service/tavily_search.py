@@ -49,7 +49,16 @@ PATTERN_SOK_QUERY = re.compile(
     re.IGNORECASE | re.MULTILINE
 )
 
-# Pattern 3: Quoted queries after keywords like "query", "fråga"
+# Pattern 3: Numbered list queries after Tavily-sökning:
+# Matches: Lines starting with digits, period/parenthesis, then quoted text
+# Example: "1. \"query text\"" or "1) \"query text\""
+# Captures: Everything inside quotes
+PATTERN_NUMBERED_QUERY = re.compile(
+    r'^\s*\d+[\.)]\s*["\']([^"\']+)["\']',
+    re.IGNORECASE | re.MULTILINE
+)
+
+# Pattern 4: Quoted queries after keywords like "query", "fråga"
 # Matches: "query:" or "fråga:" followed by quoted text
 # Captures: Everything inside quotes
 PATTERN_QUOTED_QUERY = re.compile(
@@ -236,6 +245,7 @@ def extract_tavily_queries(reasoning_text: str) -> List[str]:
     - "Tavily-sökning: <query>" or "Tavily-sökning jag vill göra är: <query>"
     - "**Query:** <query>"
     - "Sök: <query>"
+    - Numbered lists: "1. \"query\""
     - Queries in quotes after keywords
     
     Args:
@@ -255,11 +265,17 @@ def extract_tavily_queries(reasoning_text: str) -> List[str]:
     matches1b = PATTERN_TAVILY_SIMPLE.findall(reasoning_text)
     queries.extend([m.strip() for m in matches1b])
     
+    # Pattern 2: "Sök: <query>"
     matches2 = PATTERN_SOK_QUERY.findall(reasoning_text)
     queries.extend([m.strip() for m in matches2])
     
-    matches3 = PATTERN_QUOTED_QUERY.findall(reasoning_text)
+    # Pattern 3: Numbered list queries (1. "query", 2. "query")
+    matches3 = PATTERN_NUMBERED_QUERY.findall(reasoning_text)
     queries.extend([m.strip() for m in matches3])
+    
+    # Pattern 4: Quoted queries after keywords
+    matches4 = PATTERN_QUOTED_QUERY.findall(reasoning_text)
+    queries.extend([m.strip() for m in matches4])
     
     # Clean up queries: remove trailing text that's not part of the query
     cleaned_queries = []
