@@ -210,6 +210,18 @@ except ImportError:
         search_with_sources = None
         search_swedish_sources = None
 
+# ONESEEK Δ+: Tavily Data Summarization for structured data injection
+try:
+    from .tavily_summarizer import format_tavily_for_oneseek
+    TAVILY_SUMMARIZER_AVAILABLE = True
+except ImportError:
+    try:
+        from tavily_summarizer import format_tavily_for_oneseek
+        TAVILY_SUMMARIZER_AVAILABLE = True
+    except ImportError:
+        TAVILY_SUMMARIZER_AVAILABLE = False
+        format_tavily_for_oneseek = None
+
 try:
     from .calculate_confidence import get_confidence_calculator, calculate_confidence
     CONFIDENCE_CALC_AVAILABLE = True
@@ -14042,9 +14054,17 @@ Skriv kort och strukturerat – börja direkt."""
                         
                         # Format injected data (tavily_results is now accessible here)
                         if tavily_results:
-                            injected_data = "\n\n**REALTIDSDATA FRÅN TAVILY:**\n\n"
-                            for i, res in enumerate(tavily_results, 1):
-                                injected_data += f"**Sökning {i}:** {res['query']}\n{res['summary']}\n\n"
+                            # Use backend summarization if available, otherwise fallback to original format
+                            if TAVILY_SUMMARIZER_AVAILABLE and format_tavily_for_oneseek:
+                                logger.info(f"[TAVILY-SUMMARIZER] Processing {len(tavily_results)} results with backend summarization...")
+                                injected_data = format_tavily_for_oneseek(tavily_results, use_summarization=True)
+                                logger.info(f"[TAVILY-SUMMARIZER] ✓ Structured and summarized data ready for STEP 3")
+                            else:
+                                # Fallback to original formatting if summarizer not available
+                                logger.info(f"[WS-Debate] Using original Tavily formatting (summarizer not available)")
+                                injected_data = "\n\n**REALTIDSDATA FRÅN TAVILY:**\n\n"
+                                for i, res in enumerate(tavily_results, 1):
+                                    injected_data += f"**Sökning {i}:** {res['query']}\n{res['summary']}\n\n"
                             
                             logger.info(f"[WS-Debate] DATA REASONING: Injected {len(tavily_results)} Tavily results into main prompt")
                             logger.info(f"[ONESEEK-DEBUG] Total injected data: {len(injected_data)} chars from {len(tavily_results)} searches")
