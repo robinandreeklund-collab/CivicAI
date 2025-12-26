@@ -92,10 +92,12 @@ def summarize_tavily_content(content: str, query: str = "") -> str:
             
             summary = summary.strip()
             
-            if summary and len(summary) > 50:
+            if summary and len(summary) >= SUMMARIZER_MIN_LENGTH:
                 reduction = round((1 - len(summary) / original_length) * 100)
                 logger.info(f"[TAVILY-SUMMARIZER] BERT summary: {len(summary)} chars (reduced by {reduction}% from {original_length})")
                 return summary
+            else:
+                logger.warning(f"[TAVILY-SUMMARIZER] BERT produced insufficient summary ({len(summary) if summary else 0} chars). Using fallback.")
                 
         except Exception as e:
             logger.warning(f"[TAVILY-SUMMARIZER] BERT summarization failed: {e}. Using fallback.")
@@ -126,14 +128,20 @@ def _extraction_based_summarize(content: str, query: str, original_length: int) 
         if re.search(r'\d+', sentence):
             score += 3
         
-        # Priority 2: Contains query terms
+        # Percentage specifically (important for statistics)
+        if re.search(r'\d+\s*%', sentence):
+            score += 2
+        
+        # Priority 2: Contains query terms (increased weight)
         sentence_terms = set(lower_sentence.split())
         overlap = query_terms & sentence_terms
-        score += len(overlap) * 2
+        score += len(overlap) * 3  # Increased from 2
         
-        # Priority 3: Contains Swedish keywords
-        swedish_keywords = ['procent', 'miljoner', 'tusen', 'år', 'enligt', 'visar', 'forskare', 
-                           'studie', 'rapport', 'data', 'resultat', 'analys']
+        # Priority 3: Contains Swedish keywords (expanded list)
+        swedish_keywords = ['procent', 'miljoner', 'miljarder', 'tusen', 'år', 
+                           'enligt', 'visar', 'forskare', 'studie', 'rapport', 
+                           'data', 'resultat', 'analys', 'befolkning', 'Sverige',
+                           'ökar', 'minskar', 'beräknas', 'förväntas', 'prognosticerar']
         for keyword in swedish_keywords:
             if keyword in lower_sentence:
                 score += 1
@@ -152,12 +160,18 @@ def _extraction_based_summarize(content: str, query: str, original_length: int) 
     selected_sentences = []
     current_length = 0
     
+    # Ensure at least 2-3 sentences even if target length not reached
     for score, sentence in scored_sentences:
-        if current_length + len(sentence) <= target_length or len(selected_sentences) == 0:
+        if current_length + len(sentence) <= target_length or len(selected_sentences) < 3:
             selected_sentences.append(sentence)
             current_length += len(sentence)
-        if current_length >= target_length and len(selected_sentences) >= 2:
+        if current_length >= target_length and len(selected_sentences) >= 3:
             break
+    
+    # Safety: If no sentences selected, return original content truncated
+    if not selected_sentences:
+        logger.warning("[TAVILY-SUMMARIZER] Extraction failed to select sentences. Using original content.")
+        return content[:int(original_length * SUMMARIZER_RATIO)] + "..."
     
     summary = '. '.join(selected_sentences) + '.'
     reduction = round((1 - len(summary) / original_length) * 100)
@@ -194,18 +208,29 @@ def structure_tavily_data(tavily_results: List[Dict[str, Any]]) -> str:
         results = result.get('results', [])
         
         # Combine answer and top result contents for summarization
-        content_to_summarize = answer
-        for res in results[:3]:  # Use top 3 results
-            res_content = res.get('content', '')
-            if res_content:
-                content_to_summarize += f"\n\n{res_content[:500]}"  # Limit per result
+        # Enhanced: Use more results and longer content per result
+        content_parts = []
+        if answer and len(answer.strip()) > 20:
+            content_parts.append(answer)
         
-        # Summarize combined content
-        if content_to_summarize:
+        for res in results[:5]:  # Increased from 3 to 5 for more content
+            res_content = res.get('content', '')
+            if res_content and len(res_content.strip()) > 50:
+                content_parts.append(res_content[:800])  # Increased from 500 to 800
+        
+        content_to_summarize = '\n\n'.join(content_parts)
+        
+        # Summarize combined content with robust error handling
+        if content_to_summarize and len(content_to_summarize) > 100:
             logger.info(f"[TAVILY-SUMMARIZER] Summarizing content ({len(content_to_summarize)} chars) for query: {query[:50]}...")
             summarized = summarize_tavily_content(content_to_summarize, query)
+            
+            # Validate summary is not empty or too short
+            if not summarized or len(summarized.strip()) < 50:
+                logger.warning(f"[TAVILY-SUMMARIZER] Summarization produced insufficient output. Using raw content.")
+                summarized = content_to_summarize[:500] + "..."  # Use first 500 chars as fallback
         else:
-            summarized = "Ingen detaljerad information tillgänglig."
+            summarized = content_to_summarize if content_to_summarize else "Ingen detaljerad information tillgänglig."
         
         # Format query section
         structured_parts.append(f"\n**{idx}. {query}**")
