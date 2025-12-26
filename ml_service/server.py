@@ -14372,7 +14372,7 @@ Börja direkt med öppningen – ingen extra inledning."""
                     f.write(f"  - raw_contribution: ({len(raw_contribution)} chars from STEP 1)\n")
                     f.write(f"  - tavily_data: ({len(tavily_data_formatted)} chars from STEP 2, {len(tavily_results) if tavily_results else 0} searches)\n")
                     f.write(f"  - chain_so_far: ({len(chain_so_far)} chars)\n")
-                    f.write(f"  - clean_question: {state['clean_question']}\n\n")
+                    f.write(f"  - clean_question: {clean_question}\n\n")
             except Exception as e:
                 logger.error(f"[ONESEEK-DEBUG] Failed to write STEP 3 start to debug file: {e}")
             
