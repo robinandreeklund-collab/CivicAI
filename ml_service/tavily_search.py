@@ -58,6 +58,15 @@ PATTERN_NUMBERED_QUERY = re.compile(
     re.IGNORECASE | re.MULTILINE
 )
 
+# Pattern 3b: Labeled queries with numbers (e.g., "**Query 1:", "- **Query 2:")
+# Matches: Optional dash/asterisk, optional markdown bold, "Query" or "Fråga", number, colon, quoted text
+# Example: "**Query 1: \"text\"" or "- **Query 2: \"text\""
+# Captures: Everything inside quotes
+PATTERN_LABELED_QUERY = re.compile(
+    r'[-\s]*\*{0,2}\s*(?:Query|Fråga)\s*\d+[:\s]+["\']([^"\']+)["\']',
+    re.IGNORECASE
+)
+
 # Pattern 4: Quoted queries after keywords like "query", "fråga"
 # Matches: "query:" or "fråga:" followed by quoted text
 # Captures: Everything inside quotes
@@ -246,6 +255,7 @@ def extract_tavily_queries(reasoning_text: str) -> List[str]:
     - "**Query:** <query>"
     - "Sök: <query>"
     - Numbered lists: "1. \"query\""
+    - Labeled queries: "**Query 1: \"query\"", "- **Query 2: \"query\""
     - Queries in quotes after keywords
     
     Args:
@@ -272,6 +282,10 @@ def extract_tavily_queries(reasoning_text: str) -> List[str]:
     # Pattern 3: Numbered list queries (1. "query", 2. "query")
     matches3 = PATTERN_NUMBERED_QUERY.findall(reasoning_text)
     queries.extend([m.strip() for m in matches3])
+    
+    # Pattern 3b: Labeled queries with numbers (**Query 1: "query", - **Query 2: "query")
+    matches3b = PATTERN_LABELED_QUERY.findall(reasoning_text)
+    queries.extend([m.strip() for m in matches3b])
     
     # Pattern 4: Quoted queries after keywords
     matches4 = PATTERN_QUOTED_QUERY.findall(reasoning_text)
