@@ -26,11 +26,18 @@ CONTENT_PREVIEW_LENGTH = 150  # Characters to show in source content preview
 
 # Compiled regex patterns for query extraction (better performance)
 # Pattern 1: "Tavily-sökning: <query>" or "Tavily search: <query>" or "**Query:** <query>"
-# Matches: Optional markdown (\*{0,2}), then Tavily-sökning/Query/query
-# Captures: Query text until newline, period, or stop words
-# Handles: **Tavily-sökning:, Tavily-sökning:, **Query:, Query:
+# Also handles: "Tavily-sökning jag vill göra är: <query>"
+# Matches: Optional markdown (\*{0,2}), then Tavily-sökning/Query/query, optional filler text, then colon
+# Captures: Query text (preferably in quotes) until newline, period, or stop words
+# Handles: **Tavily-sökning:, Tavily-sökning jag vill göra är:, Ett specifikt Tavily-sökning jag vill göra är:, **Query:, Query:
 PATTERN_TAVILY_SEARCH = re.compile(
-    r'\*{0,2}\s*(?:Tavily[-\s]s[öo]kning|Query|query)\s*[:\s]+["\']?([^"\'\.?\n]+?)(?:["\'])?(?=[\n\.\*]|Detta|Sök|$)',
+    r'\*{0,2}\s*(?:specifikt\s+)?(?:Ett\s+specifikt\s+)?Tavily[-\s]s[öo]kning(?:\s+jag\s+vill\s+g[öo]ra\s+[äa]r)?[:\s]+["\']([^"\']+)["\']',
+    re.IGNORECASE
+)
+
+# Pattern 1b: Simpler Tavily-sökning: query (without requiring quotes)
+PATTERN_TAVILY_SIMPLE = re.compile(
+    r'\*{0,2}\s*(?:Tavily[-\s]s[öo]kning|Query|query)\s*[:\s]+["\']?([^"\'\.?\n]{10,})(?:["\'])?(?=[\n\.\*]|Detta|Sök|$)',
     re.IGNORECASE
 )
 
@@ -226,7 +233,8 @@ def extract_tavily_queries(reasoning_text: str) -> List[str]:
     Extract Tavily search queries from ONESEEK's Data Reasoning text.
     
     Looks for patterns like:
-    - "Tavily-sökning: <query>"
+    - "Tavily-sökning: <query>" or "Tavily-sökning jag vill göra är: <query>"
+    - "**Query:** <query>"
     - "Sök: <query>"
     - Queries in quotes after keywords
     
@@ -239,8 +247,13 @@ def extract_tavily_queries(reasoning_text: str) -> List[str]:
     queries = []
     
     # Use pre-compiled patterns for better performance
+    # Pattern 1: Quoted queries after Tavily-sökning (prioritize these)
     matches1 = PATTERN_TAVILY_SEARCH.findall(reasoning_text)
     queries.extend([m.strip() for m in matches1])
+    
+    # Pattern 1b: Simple Tavily-sökning without requiring quotes
+    matches1b = PATTERN_TAVILY_SIMPLE.findall(reasoning_text)
+    queries.extend([m.strip() for m in matches1b])
     
     matches2 = PATTERN_SOK_QUERY.findall(reasoning_text)
     queries.extend([m.strip() for m in matches2])
