@@ -49,6 +49,7 @@ import argparse
 import json
 import uuid
 from datetime import datetime
+from datetime import datetime
 from typing import Optional, List, Dict, Any, AsyncGenerator
 import requests  # For Tavily API and SMHI weather
 import yaml  # For loading personality YAML cards
@@ -13695,6 +13696,44 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
             # STEP 1: Generate ONESEEK's raw contribution (not shown to user)
             # ===========================================================================
             
+            # Initialize debug file logging for this OneSeek turn
+            debug_log_dir = Path(__file__).parent / "logs" / "oneseek"
+            debug_log_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create timestamped debug file for this debate session
+            if not hasattr(websocket, '_oneseek_debug_file'):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                debug_file_path = debug_log_dir / f"oneseek_debug_{timestamp}.log"
+                websocket._oneseek_debug_file = debug_file_path
+                websocket._oneseek_debate_start = datetime.now()
+                
+                # Write debate header
+                try:
+                    with open(debug_file_path, 'w', encoding='utf-8') as f:
+                        f.write("=" * 80 + "\n")
+                        f.write("ONESEEK DEBUG LOG - 3-STEP DATA REASONING FLOW\n")
+                        f.write("=" * 80 + "\n")
+                        f.write(f"Debate Started: {websocket._oneseek_debate_start.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                        f.write(f"Question: {state['clean_question']}\n")
+                        f.write("=" * 80 + "\n\n")
+                except Exception as e:
+                    logger.error(f"[ONESEEK-DEBUG] Failed to create debug file: {e}")
+            
+            # Log turn start to file
+            turn_start_time = datetime.now()
+            try:
+                with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
+                    f.write("\n" + "=" * 80 + "\n")
+                    f.write(f"ONESEEK TURN - Round {round_num}\n")
+                    f.write("=" * 80 + "\n")
+                    f.write(f"Turn Started: {turn_start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"Position: {oneseek_position + 1}/{len(round_turn_order)}\n")
+                    if remaining_agents:
+                        f.write(f"Remaining agents: {remaining_agents}\n")
+                    f.write("=" * 80 + "\n\n")
+            except Exception as e:
+                logger.error(f"[ONESEEK-DEBUG] Failed to write to debug file: {e}")
+            
             logger.info(f"[WS-Debate] STEP 1: OneSeek generating raw contribution for round {round_num}...")
             logger.info(f"[ONESEEK-DEBUG] ================================================================================")
             logger.info(f"[ONESEEK-DEBUG] STEP 1: GENERATING RAW CONTRIBUTION")
@@ -13779,6 +13818,23 @@ Skriv ditt inledande resonemang utan att fokusera på källor eller data än. De
                 logger.info(f"[ONESEEK-DEBUG] Length: {len(raw_contribution)} chars (~{len(raw_contribution.split())} words)")
                 logger.info(f"[ONESEEK-DEBUG] Content:")
                 logger.info(f"[ONESEEK-DEBUG] {raw_contribution}")
+                
+                # Log STEP 1 to debug file
+                try:
+                    with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
+                        f.write("--- STEP 1: RAW CONTRIBUTION GENERATION ---\n")
+                        f.write(f"Prompt Template: {raw_template_key}\n")
+                        f.write(f"Temperature: {loaded_temperatures.get(raw_template_key, 0.8)}\n")
+                        f.write(f"Timeout: 120s\n\n")
+                        f.write("Input Parameters:\n")
+                        f.write(f"  - chain_so_far: ({len(raw_chain_so_far)} chars)\n")
+                        f.write(f"  - clean_question: {state['clean_question']}\n\n")
+                        f.write("Chain Context:\n")
+                        f.write(f"{raw_chain_so_far}\n\n")
+                        f.write(f"Generated Raw Contribution ({len(raw_contribution)} chars, ~{len(raw_contribution.split())} words):\n")
+                        f.write(f"{raw_contribution}\n\n")
+                except Exception as e:
+                    logger.error(f"[ONESEEK-DEBUG] Failed to write STEP 1 to debug file: {e}")
                 logger.info(f"[ONESEEK-DEBUG] ================================================")
                 
             except Exception as e:
@@ -13888,6 +13944,21 @@ Skriv kort och strukturerat – börja direkt."""
                 logger.info(f"[WS-Debate] {data_reasoning_text}")
                 logger.info(f"[WS-Debate] ====================================================")
                 
+                # Log STEP 2 to debug file (DATA REASONING)
+                try:
+                    with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
+                        f.write("--- STEP 2: DATA REASONING ANALYSIS ---\n")
+                        f.write(f"Prompt Template: data_reasoning\n")
+                        f.write(f"Temperature: {loaded_temperatures.get('data_reasoning', 0.75)}\n")
+                        f.write(f"Timeout: 120s\n\n")
+                        f.write("Input Parameters:\n")
+                        f.write(f"  - raw_contribution: ({len(raw_contribution)} chars from STEP 1)\n")
+                        f.write(f"  - chain_so_far: ({len(data_reasoning_context)} chars)\n\n")
+                        f.write("Data Reasoning Output:\n")
+                        f.write(f"{data_reasoning_text}\n\n")
+                except Exception as e:
+                    logger.error(f"[ONESEEK-DEBUG] Failed to write STEP 2 to debug file: {e}")
+                
                 # Emit data reasoning to frontend
                 await websocket.send_json({
                     "type": "data_reasoning",
@@ -13983,6 +14054,23 @@ Skriv kort och strukturerat – börja direkt."""
                             logger.info(f"[WS-Debate] {injected_data[:500]}...")
                             logger.info(f"[WS-Debate] Total injected data length: {len(injected_data)} chars")
                             logger.info(f"[WS-Debate] ======================================================")
+                            
+                            # Log Tavily results to debug file
+                            try:
+                                with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
+                                    f.write("Extracted Tavily Queries:\n")
+                                    for i, q in enumerate(queries, 1):
+                                        f.write(f"  {i}. \"{q}\"\n")
+                                    f.write("\nTavily Search Results:\n\n")
+                                    for i, res in enumerate(tavily_results, 1):
+                                        f.write(f"  Query {i}: \"{res['query']}\"\n")
+                                        f.write(f"  Status: Success\n")
+                                        f.write(f"  Summary ({len(res['summary'])} chars):\n")
+                                        f.write(f"{res['summary']}\n\n")
+                                    f.write(f"Formatted Tavily Data for STEP 3 ({len(injected_data)} chars):\n")
+                                    f.write(f"{injected_data}\n\n")
+                            except Exception as e:
+                                logger.error(f"[ONESEEK-DEBUG] Failed to write Tavily results to debug file: {e}")
                             
                             # Emit Tavily data to frontend
                             await websocket.send_json({
@@ -14273,6 +14361,21 @@ Börja direkt med öppningen – ingen extra inledning."""
             logger.info(f"[ONESEEK-DEBUG] {tavily_data_formatted}")
             logger.info(f"[ONESEEK-DEBUG] ==================================================")
             
+            # Log STEP 3 to debug file (before generation)
+            try:
+                with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
+                    f.write("--- STEP 3: FINAL CONTRIBUTION GENERATION ---\n")
+                    f.write(f"Prompt Template: {template_key}\n")
+                    f.write(f"Temperature: {loaded_temperatures.get(template_key, 0.7)}\n")
+                    f.write(f"Timeout: 180s\n\n")
+                    f.write("Input Parameters:\n")
+                    f.write(f"  - raw_contribution: ({len(raw_contribution)} chars from STEP 1)\n")
+                    f.write(f"  - tavily_data: ({len(tavily_data_formatted)} chars from STEP 2, {len(tavily_results) if tavily_results else 0} searches)\n")
+                    f.write(f"  - chain_so_far: ({len(chain_so_far)} chars)\n")
+                    f.write(f"  - clean_question: {state['clean_question']}\n\n")
+            except Exception as e:
+                logger.error(f"[ONESEEK-DEBUG] Failed to write STEP 3 start to debug file: {e}")
+            
             # Replace all parameters including {tavily_data} AND {raw_contribution}
             oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)").replace('{tavily_data}', tavily_data_formatted).replace('{raw_contribution}', raw_contribution)
             
@@ -14311,6 +14414,19 @@ Börja direkt med öppningen – ingen extra inledning."""
                 
                 # Log OneSeek's own answer response to debug logger
                 debug_logger.log_oneseek_own_answer(round_num, oneseek_context, answer)
+                
+                # Log STEP 3 completion to debug file
+                turn_end_time = datetime.now()
+                duration = turn_end_time - turn_start_time
+                try:
+                    with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
+                        f.write(f"Final Contribution Generated (streaming):\n")
+                        f.write(f"{answer}\n\n")
+                        f.write(f"Turn Completed: {turn_end_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                        f.write(f"Total Duration: {duration.total_seconds():.0f} seconds\n")
+                        f.write("=" * 80 + "\n\n")
+                except Exception as e:
+                    logger.error(f"[ONESEEK-DEBUG] Failed to write STEP 3 completion to debug file: {e}")
                 
                 # Stream OneSeek's own answer
                 # Get ONESEEK's position in turn order for rounds 2-3
