@@ -15,7 +15,8 @@ from typing import List, Dict, Any, Optional
 logger = logging.getLogger("uvicorn")
 
 # Configuration
-SUMMARIZER_ENABLED = True      # Enable/disable summarization feature
+BERT_ENABLED = False           # BERT is optional - extraction-based works great without it
+SUMMARIZER_ENABLED = True      # Enable/disable summarization feature entirely
 SUMMARIZER_RATIO = 0.4         # Keep 40% of original text (adjustable 0.2-0.5)
 SUMMARIZER_MIN_LENGTH = 50     # Minimum summary length in characters
 MAX_SOURCES_PER_QUERY = 2      # Maximum sources to include per query
@@ -77,10 +78,11 @@ def summarize_tavily_content(content: str, query: str = "") -> str:
     
     original_length = len(content)
     
-    # Try BERT extractive summarization first
-    summarizer = _load_bert_summarizer()
+    # Try BERT extractive summarization first (if enabled)
+    # NOTE: BERT is optional - extraction-based fallback works great without it
+    summarizer = _load_bert_summarizer() if BERT_ENABLED else None
     
-    if summarizer and SUMMARIZER_ENABLED:
+    if summarizer and BERT_ENABLED and SUMMARIZER_ENABLED:
         try:
             # BERT extractive summarization
             # Extracts key sentences while maintaining factual accuracy
@@ -108,9 +110,12 @@ def summarize_tavily_content(content: str, query: str = "") -> str:
 
 def _extraction_based_summarize(content: str, query: str, original_length: int) -> str:
     """
-    Fallback extraction-based summarization when BERT is unavailable.
+    Extraction-based summarization - reliable and effective without ML dependencies.
     Prioritizes sentences with numbers, keywords, and proper nouns.
+    Works great for Swedish text with factual data.
     """
+    logger.info(f"[TAVILY-SUMMARIZER] Using extraction-based summarization (no BERT needed)")
+    
     sentences = re.split(r'[.!?]+\s+', content)
     
     # Score sentences based on informativeness
@@ -175,7 +180,8 @@ def _extraction_based_summarize(content: str, query: str, original_length: int) 
     
     summary = '. '.join(selected_sentences) + '.'
     reduction = round((1 - len(summary) / original_length) * 100)
-    logger.info(f"[TAVILY-SUMMARIZER] Extraction summary: {len(summary)} chars (reduced by {reduction}% from {original_length})")
+    logger.info(f"[TAVILY-SUMMARIZER] ✓ Extraction summary: {len(summary)} chars (reduced by {reduction}% from {original_length})")
+    logger.info(f"[TAVILY-SUMMARIZER] Preview: {summary[:150]}...")
     
     return summary
 
@@ -223,13 +229,19 @@ def structure_tavily_data(tavily_results: List[Dict[str, Any]]) -> str:
         # Summarize combined content with robust error handling
         if content_to_summarize and len(content_to_summarize) > 100:
             logger.info(f"[TAVILY-SUMMARIZER] Summarizing content ({len(content_to_summarize)} chars) for query: {query[:50]}...")
+            logger.info(f"[TAVILY-SUMMARIZER] Content preview: {content_to_summarize[:200]}...")
             summarized = summarize_tavily_content(content_to_summarize, query)
             
             # Validate summary is not empty or too short
             if not summarized or len(summarized.strip()) < 50:
-                logger.warning(f"[TAVILY-SUMMARIZER] Summarization produced insufficient output. Using raw content.")
+                logger.error(f"[TAVILY-SUMMARIZER] ❌ Summarization produced insufficient output ({len(summarized) if summarized else 0} chars)!")
+                logger.error(f"[TAVILY-SUMMARIZER] This should not happen - check logs above for errors.")
+                logger.info(f"[TAVILY-SUMMARIZER] Using raw content fallback...")
                 summarized = content_to_summarize[:500] + "..."  # Use first 500 chars as fallback
+            else:
+                logger.info(f"[TAVILY-SUMMARIZER] ✓ Summary successful: {len(summarized)} chars")
         else:
+            logger.warning(f"[TAVILY-SUMMARIZER] Content too short to summarize ({len(content_to_summarize)} chars)")
             summarized = content_to_summarize if content_to_summarize else "Ingen detaljerad information tillgänglig."
         
         # Format query section
