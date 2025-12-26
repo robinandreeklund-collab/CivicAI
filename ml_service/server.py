@@ -14041,9 +14041,12 @@ Skriv kort och strukturerat – börja direkt."""
                                 
                                 if result:
                                     summary = summarize_tavily_result(result)
+                                    # Store full result for backend summarization
                                     tavily_results.append({
                                         'query': query,
-                                        'summary': summary
+                                        'summary': summary,
+                                        'answer': result.get('answer', ''),
+                                        'results': result.get('results', [])
                                     })
                                     logger.info(f"[WS-Debate] Tavily search successful for: {query}")
                                     logger.info(f"[ONESEEK-DEBUG]   Status: Success")
