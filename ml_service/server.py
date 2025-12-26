@@ -13802,7 +13802,7 @@ Skriv ditt inledande resonemang utan att fokusera på källor eller data än. De
                 llm_response = requests.post(
                     f"{server_url}/v1/chat/completions",
                     json=payload,
-                    timeout=30,
+                    timeout=120,  # Increased to 120 seconds for limited hardware (250-350 words output)
                 )
                 llm_response.raise_for_status()
                 result = llm_response.json()
