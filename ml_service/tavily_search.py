@@ -67,6 +67,15 @@ PATTERN_LABELED_QUERY = re.compile(
     re.IGNORECASE
 )
 
+# Pattern 3c: Simple dash-bullet queries (e.g., "- \"query text\"")
+# Matches: Lines starting with dash/bullet, then quoted text
+# Example: "- \"query text\"" or "  - \"query text\""
+# Captures: Everything inside quotes
+PATTERN_DASH_BULLET_QUERY = re.compile(
+    r'^\s*-\s*["\']([^"\']+)["\']',
+    re.IGNORECASE | re.MULTILINE
+)
+
 # Pattern 4: Quoted queries after keywords like "query", "fråga"
 # Matches: "query:" or "fråga:" followed by quoted text
 # Captures: Everything inside quotes
@@ -256,6 +265,7 @@ def extract_tavily_queries(reasoning_text: str) -> List[str]:
     - "Sök: <query>"
     - Numbered lists: "1. \"query\""
     - Labeled queries: "**Query 1: \"query\"", "- **Query 2: \"query\""
+    - Dash-bullet queries: "- \"query\""
     - Queries in quotes after keywords
     
     Args:
@@ -286,6 +296,10 @@ def extract_tavily_queries(reasoning_text: str) -> List[str]:
     # Pattern 3b: Labeled queries with numbers (**Query 1: "query", - **Query 2: "query")
     matches3b = PATTERN_LABELED_QUERY.findall(reasoning_text)
     queries.extend([m.strip() for m in matches3b])
+    
+    # Pattern 3c: Simple dash-bullet queries (- "query")
+    matches3c = PATTERN_DASH_BULLET_QUERY.findall(reasoning_text)
+    queries.extend([m.strip() for m in matches3c])
     
     # Pattern 4: Quoted queries after keywords
     matches4 = PATTERN_QUOTED_QUERY.findall(reasoning_text)
