@@ -13943,6 +13943,19 @@ Skriv kort och strukturerat – börja direkt."""
                                     api_key=TAVILY_API_KEY
                                 )
                                 
+                                # Log complete Tavily result for debugging
+                                if result:
+                                    logger.info(f"[ONESEEK-DEBUG] ========== COMPLETE TAVILY RESULT FOR: {query} ==========")
+                                    logger.info(f"[ONESEEK-DEBUG] Answer: {result.get('answer', 'N/A')}")
+                                    logger.info(f"[ONESEEK-DEBUG] Number of results: {len(result.get('results', []))}")
+                                    for idx, res in enumerate(result.get('results', []), 1):
+                                        logger.info(f"[ONESEEK-DEBUG] --- Result {idx} ---")
+                                        logger.info(f"[ONESEEK-DEBUG]   Title: {res.get('title', 'N/A')}")
+                                        logger.info(f"[ONESEEK-DEBUG]   URL: {res.get('url', 'N/A')}")
+                                        logger.info(f"[ONESEEK-DEBUG]   Score: {res.get('score', 'N/A')}")
+                                        logger.info(f"[ONESEEK-DEBUG]   Content (first 300 chars): {res.get('content', '')[:300]}...")
+                                    logger.info(f"[ONESEEK-DEBUG] ========================================")
+                                
                                 if result:
                                     summary = summarize_tavily_result(result)
                                     tavily_results.append({
