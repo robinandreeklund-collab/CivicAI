@@ -15,10 +15,10 @@ from typing import List, Dict, Any, Optional
 logger = logging.getLogger("uvicorn")
 
 # Configuration
-BERT_ENABLED = False           # BERT is optional - extraction-based works great without it
+BERT_ENABLED = True            # Enable BERT for aggressive summarization on limited hardware
 SUMMARIZER_ENABLED = True      # Enable/disable summarization feature entirely
-SUMMARIZER_RATIO = 0.4         # Keep 40% of original text (adjustable 0.2-0.5)
-SUMMARIZER_MIN_LENGTH = 50     # Minimum summary length in characters
+SUMMARIZER_RATIO = 0.25        # Keep 25% of original text (aggressive for limited hardware)
+SUMMARIZER_MIN_LENGTH = 30     # Minimum summary length in characters (lowered for aggressive mode)
 MAX_SOURCES_PER_QUERY = 2      # Maximum sources to include per query
 
 # Lazy load BERT summarizer to avoid import time overhead
@@ -84,11 +84,11 @@ def summarize_tavily_content(content: str, query: str = "") -> str:
     
     if summarizer and BERT_ENABLED and SUMMARIZER_ENABLED:
         try:
-            # BERT extractive summarization
+            # Aggressive BERT extractive summarization for limited hardware
             # Extracts key sentences while maintaining factual accuracy
             summary = summarizer(
                 content,
-                ratio=SUMMARIZER_RATIO,  # Keep 40% of content
+                ratio=SUMMARIZER_RATIO,  # Keep 25% of content (aggressive mode)
                 min_length=SUMMARIZER_MIN_LENGTH
             )
             
@@ -96,7 +96,7 @@ def summarize_tavily_content(content: str, query: str = "") -> str:
             
             if summary and len(summary) >= SUMMARIZER_MIN_LENGTH:
                 reduction = round((1 - len(summary) / original_length) * 100)
-                logger.info(f"[TAVILY-SUMMARIZER] BERT summary: {len(summary)} chars (reduced by {reduction}% from {original_length})")
+                logger.info(f"[TAVILY-SUMMARIZER] Aggressive BERT summary: {len(summary)} chars (reduced by {reduction}% from {original_length})")
                 return summary
             else:
                 logger.warning(f"[TAVILY-SUMMARIZER] BERT produced insufficient summary ({len(summary) if summary else 0} chars). Using fallback.")
@@ -110,11 +110,12 @@ def summarize_tavily_content(content: str, query: str = "") -> str:
 
 def _extraction_based_summarize(content: str, query: str, original_length: int) -> str:
     """
-    Extraction-based summarization - reliable and effective without ML dependencies.
+    Aggressive extraction-based summarization - optimized for limited hardware.
     Prioritizes sentences with numbers, keywords, and proper nouns.
     Works great for Swedish text with factual data.
+    Now set to 25% ratio for maximum compactness.
     """
-    logger.info(f"[TAVILY-SUMMARIZER] Using extraction-based summarization (no BERT needed)")
+    logger.info(f"[TAVILY-SUMMARIZER] Using aggressive extraction-based summarization (25% ratio)")
     
     sentences = re.split(r'[.!?]+\s+', content)
     
@@ -160,17 +161,17 @@ def _extraction_based_summarize(content: str, query: str, original_length: int) 
     # Sort by score and take top sentences
     scored_sentences.sort(reverse=True, key=lambda x: x[0])
     
-    # Select top sentences to reach ~40% of original length
+    # Select top sentences to reach ~25% of original length (aggressive mode)
     target_length = int(original_length * SUMMARIZER_RATIO)
     selected_sentences = []
     current_length = 0
     
-    # Ensure at least 2-3 sentences even if target length not reached
+    # Ensure at least 1-2 sentences even if target length not reached (aggressive mode)
     for score, sentence in scored_sentences:
-        if current_length + len(sentence) <= target_length or len(selected_sentences) < 3:
+        if current_length + len(sentence) <= target_length or len(selected_sentences) < 2:
             selected_sentences.append(sentence)
             current_length += len(sentence)
-        if current_length >= target_length and len(selected_sentences) >= 3:
+        if current_length >= target_length and len(selected_sentences) >= 2:
             break
     
     # Safety: If no sentences selected, return original content truncated
@@ -213,13 +214,20 @@ def structure_tavily_data(tavily_results: List[Dict[str, Any]]) -> str:
         answer = result.get('answer', '')
         results = result.get('results', [])
         
-        # Use Tavily's advanced AI answer directly (already optimized by Tavily's LLM)
-        # No need to summarize further since include_answer="advanced" provides high-quality summaries
+        # Use Tavily's advanced AI answer as base, then apply aggressive BERT summarization for limited hardware
         if answer and len(answer.strip()) > 20:
-            logger.info(f"[TAVILY-SUMMARIZER] Using Tavily's advanced AI answer directly ({len(answer)} chars) for query: {query[:50]}...")
-            logger.info(f"[TAVILY-SUMMARIZER] Answer preview: {answer[:200]}...")
-            summarized = answer.strip()
-            logger.info(f"[TAVILY-SUMMARIZER] ✓ Using optimized Tavily Answer: {len(summarized)} chars")
+            answer_text = answer.strip()
+            logger.info(f"[TAVILY-SUMMARIZER] Starting with Tavily's advanced AI answer ({len(answer_text)} chars) for query: {query[:50]}...")
+            logger.info(f"[TAVILY-SUMMARIZER] Answer preview: {answer_text[:200]}...")
+            
+            # Apply aggressive BERT summarization to make it even more compact for limited hardware
+            if len(answer_text) > 150:  # Only summarize if substantial content
+                logger.info(f"[TAVILY-SUMMARIZER] Applying aggressive BERT summarization to Answer...")
+                summarized = summarize_tavily_content(answer_text, query)
+                logger.info(f"[TAVILY-SUMMARIZER] ✓ Aggressively summarized: {len(summarized)} chars (from {len(answer_text)} chars)")
+            else:
+                summarized = answer_text
+                logger.info(f"[TAVILY-SUMMARIZER] ✓ Answer already compact: {len(summarized)} chars")
         else:
             # Fallback: If no answer, use extraction from results
             logger.warning(f"[TAVILY-SUMMARIZER] No Tavily Answer available, extracting from results...")
