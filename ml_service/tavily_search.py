@@ -93,11 +93,12 @@ PATTERN_CLEAN_TRAILING = re.compile(
 
 def tavily_search(
     query: str,
-    max_results: int = 4,
+    max_results: int = 3,
     search_depth: str = "advanced",
-    include_answer: bool = True,
+    include_answer: str = "advanced",  # Changed to str to support "advanced" value
     include_domains: Optional[List[str]] = None,
     exclude_domains: Optional[List[str]] = None,
+    country: str = "sweden",  # NEW: Filter results to Sweden
     api_key: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """
@@ -105,11 +106,12 @@ def tavily_search(
     
     Args:
         query: Sökfrågan
-        max_results: Max antal resultat (default 4)
+        max_results: Max antal resultat (default 3 for quality)
         search_depth: "basic" eller "advanced"
-        include_answer: Om AI-sammanfattning ska inkluderas
+        include_answer: AI-sammanfattning mode - True/False or "basic"/"advanced" (default "advanced")
         include_domains: Lista med domäner att inkludera
         exclude_domains: Lista med domäner att exkludera
+        country: Country code for geographic filtering (default "sweden")
         api_key: Optional API key (if not provided, uses environment variable)
         
     Returns:
@@ -127,18 +129,20 @@ def tavily_search(
             "api_key": tavily_key,
             "query": query,
             "search_depth": search_depth,
-            "include_answer": include_answer,
+            "include_answer": include_answer,  # Supports True/False or "basic"/"advanced"
             "max_results": max_results,
             "include_domains": include_domains or [],
             "exclude_domains": exclude_domains or [],
             # ONESEEK Δ+: Force Swedish language responses
-            "language": "sv"
+            "language": "sv",
+            # NEW: Geographic filtering for Sweden
+            "country": country
         }
         
         response = requests.post(
             "https://api.tavily.com/search",
             json=payload,
-            timeout=10
+            timeout=15  # Increased timeout for advanced search
         )
         
         if response.status_code == 200:
@@ -250,7 +254,10 @@ def search_swedish_sources(query: str, api_key: Optional[str] = None) -> Optiona
     return tavily_search(
         query=query,
         include_domains=SWEDISH_PRIORITY_DOMAINS,
-        max_results=6,
+        max_results=3,  # Quality over quantity
+        search_depth="advanced",
+        include_answer="advanced",
+        country="sweden",
         api_key=api_key
     )
 

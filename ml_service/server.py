@@ -14018,11 +14018,12 @@ Skriv kort och strukturerat – börja direkt."""
                                 
                                 # Execute search with Swedish priority using advanced function
                                 # Use TAVILY_API_KEY from config (admin dashboard or env var)
+                                # Optimized for relevant Swedish results with advanced answer
                                 result = tavily_search_advanced(
                                     query=query,
-                                    max_results=4,
-                                    search_depth="advanced",
-                                    include_answer=True,
+                                    max_results=3,  # Reduced to 3 for most relevant results
+                                    search_depth="advanced",  # Deep search for quality
+                                    include_answer="advanced",  # Get comprehensive AI summary from Tavily
                                     api_key=TAVILY_API_KEY
                                 )
                                 
