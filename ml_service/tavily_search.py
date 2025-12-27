@@ -93,12 +93,13 @@ PATTERN_CLEAN_TRAILING = re.compile(
 
 def tavily_search(
     query: str,
-    max_results: int = 3,
+    max_results: int = 1,  # Reduced to 1 for limited hardware
     search_depth: str = "advanced",
     include_answer: str = "advanced",  # Changed to str to support "advanced" value
     include_domains: Optional[List[str]] = None,
     exclude_domains: Optional[List[str]] = None,
     country: str = "sweden",  # NEW: Filter results to Sweden
+    chunks_per_source: int = 5,  # NEW: Limit chunks per source for limited hardware
     api_key: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """
@@ -106,12 +107,13 @@ def tavily_search(
     
     Args:
         query: Sökfrågan
-        max_results: Max antal resultat (default 3 for quality)
+        max_results: Max antal resultat (default 1 for limited hardware)
         search_depth: "basic" eller "advanced"
         include_answer: AI-sammanfattning mode - True/False or "basic"/"advanced" (default "advanced")
         include_domains: Lista med domäner att inkludera
         exclude_domains: Lista med domäner att exkludera
         country: Country code for geographic filtering (default "sweden")
+        chunks_per_source: Number of chunks to extract per source (default 5 for limited hardware)
         api_key: Optional API key (if not provided, uses environment variable)
         
     Returns:
@@ -131,6 +133,7 @@ def tavily_search(
             "search_depth": search_depth,
             "include_answer": include_answer,  # Supports True/False or "basic"/"advanced"
             "max_results": max_results,
+            "chunks_per_source": chunks_per_source,  # Limit chunks per source for limited hardware
             "include_domains": include_domains or [],
             "exclude_domains": exclude_domains or [],
             # ONESEEK Δ+: Force Swedish language responses
@@ -254,9 +257,10 @@ def search_swedish_sources(query: str, api_key: Optional[str] = None) -> Optiona
     return tavily_search(
         query=query,
         include_domains=SWEDISH_PRIORITY_DOMAINS,
-        max_results=3,  # Quality over quantity
+        max_results=1,  # Single best result for limited hardware
         search_depth="advanced",
         include_answer="advanced",
+        chunks_per_source=5,  # Limit chunks for limited hardware
         country="sweden",
         api_key=api_key
     )
