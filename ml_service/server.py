@@ -14384,13 +14384,60 @@ Börja direkt med öppningen – ingen extra inledning."""
             logger.info(f"[ONESEEK-DEBUG] {tavily_data_formatted}")
             logger.info(f"[ONESEEK-DEBUG] ==================================================")
             
-            # Log STEP 3 to debug file (before generation)
+            # Create separate detailed log file for STEP 3 (final prompt) for this round
+            step3_log_dir = os.path.join(os.path.dirname(__file__), 'logs', 'oneseek_step3')
+            os.makedirs(step3_log_dir, exist_ok=True)
+            step3_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            step3_log_file = os.path.join(step3_log_dir, f'step3_round{round_num}_{step3_timestamp}.log')
+            
+            try:
+                with open(step3_log_file, 'w', encoding='utf-8') as f:
+                    f.write("=" * 100 + "\n")
+                    f.write(f"ONESEEK STEP 3 (FINAL CONTRIBUTION) - ROUND {round_num}\n")
+                    f.write("=" * 100 + "\n")
+                    f.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"Question: {clean_question}\n")
+                    f.write(f"Round: {round_num}/{max_rounds}\n")
+                    f.write(f"Prompt Template: {template_key}\n")
+                    f.write(f"Temperature: {loaded_temperatures.get(template_key, 0.7)}\n")
+                    f.write(f"Timeout: 180s\n")
+                    f.write("=" * 100 + "\n\n")
+                    
+                    # 1. RAW CONTRIBUTION (from STEP 1)
+                    f.write("--- INPUT 1: RAW CONTRIBUTION (from STEP 1) ---\n")
+                    f.write(f"Length: {len(raw_contribution)} chars\n")
+                    f.write(f"Content:\n{raw_contribution}\n")
+                    f.write("-" * 100 + "\n\n")
+                    
+                    # 2. TAVILY DATA (from STEP 2)
+                    f.write("--- INPUT 2: TAVILY DATA (from STEP 2) ---\n")
+                    f.write(f"Length: {len(tavily_data_formatted)} chars\n")
+                    f.write(f"Number of searches: {len(tavily_results) if tavily_results else 0}\n")
+                    f.write(f"Content:\n{tavily_data_formatted if tavily_data_formatted else '(No Tavily data)'}\n")
+                    f.write("-" * 100 + "\n\n")
+                    
+                    # 3. CHAIN SO FAR (debate context)
+                    f.write("--- INPUT 3: CHAIN SO FAR (debate context) ---\n")
+                    f.write(f"Length: {len(chain_so_far)} chars\n")
+                    f.write(f"Content:\n{chain_so_far}\n")
+                    f.write("-" * 100 + "\n\n")
+                    
+                    # 4. COMPLETE FINAL PROMPT (what model receives)
+                    f.write("--- COMPLETE FINAL PROMPT (sent to model) ---\n")
+                    # We'll write this after we build it below
+                    
+                logger.info(f"[ONESEEK-DEBUG] Created detailed STEP 3 log: {step3_log_file}")
+            except Exception as e:
+                logger.error(f"[ONESEEK-DEBUG] Failed to create STEP 3 log file: {e}")
+            
+            # Log STEP 3 to main debug file (before generation)
             try:
                 with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
                     f.write("--- STEP 3: FINAL CONTRIBUTION GENERATION ---\n")
                     f.write(f"Prompt Template: {template_key}\n")
                     f.write(f"Temperature: {loaded_temperatures.get(template_key, 0.7)}\n")
-                    f.write(f"Timeout: 180s\n\n")
+                    f.write(f"Timeout: 180s\n")
+                    f.write(f"Detailed log: {step3_log_file}\n\n")
                     f.write("Input Parameters:\n")
                     f.write(f"  - raw_contribution: ({len(raw_contribution)} chars from STEP 1)\n")
                     f.write(f"  - tavily_data: ({len(tavily_data_formatted)} chars from STEP 2, {len(tavily_results) if tavily_results else 0} searches)\n")
@@ -14403,6 +14450,15 @@ Börja direkt med öppningen – ingen extra inledning."""
             oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)").replace('{tavily_data}', tavily_data_formatted).replace('{raw_contribution}', raw_contribution)
             
             oneseek_context = oneseek_main_prompt
+            
+            # Write complete final prompt to STEP 3 log file
+            try:
+                with open(step3_log_file, 'a', encoding='utf-8') as f:
+                    f.write(f"Length: {len(oneseek_context)} chars\n")
+                    f.write(f"Content:\n{oneseek_context}\n")
+                    f.write("-" * 100 + "\n\n")
+            except Exception as e:
+                logger.error(f"[ONESEEK-DEBUG] Failed to append final prompt to STEP 3 log: {e}")
             
             # Log OneSeek's own answer prompt to debug logger
             debug_logger.log_oneseek_own_answer(round_num, oneseek_context, "")
@@ -14441,6 +14497,23 @@ Börja direkt med öppningen – ingen extra inledning."""
                 # Log STEP 3 completion to debug file
                 turn_end_time = datetime.now()
                 duration = turn_end_time - turn_start_time
+                
+                # Write generated output to STEP 3 log file
+                try:
+                    with open(step3_log_file, 'a', encoding='utf-8') as f:
+                        f.write("--- OUTPUT: GENERATED FINAL CONTRIBUTION ---\n")
+                        f.write(f"Length: {len(answer)} chars\n")
+                        f.write(f"Generation time: {duration.total_seconds():.1f} seconds\n")
+                        f.write(f"Content:\n{answer}\n")
+                        f.write("-" * 100 + "\n\n")
+                        f.write("=" * 100 + "\n")
+                        f.write("END OF STEP 3 LOG\n")
+                        f.write("=" * 100 + "\n")
+                    logger.info(f"[ONESEEK-DEBUG] Completed STEP 3 log: {step3_log_file}")
+                except Exception as e:
+                    logger.error(f"[ONESEEK-DEBUG] Failed to write output to STEP 3 log: {e}")
+                
+                # Write to main debug file
                 try:
                     with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
                         f.write(f"Final Contribution Generated (streaming):\n")
