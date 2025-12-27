@@ -213,36 +213,37 @@ def structure_tavily_data(tavily_results: List[Dict[str, Any]]) -> str:
         answer = result.get('answer', '')
         results = result.get('results', [])
         
-        # Combine answer and top result contents for summarization
-        # Enhanced: Use more results and longer content per result
-        content_parts = []
+        # Use Tavily's advanced AI answer directly (already optimized by Tavily's LLM)
+        # No need to summarize further since include_answer="advanced" provides high-quality summaries
         if answer and len(answer.strip()) > 20:
-            content_parts.append(answer)
-        
-        for res in results[:5]:  # Increased from 3 to 5 for more content
-            res_content = res.get('content', '')
-            if res_content and len(res_content.strip()) > 50:
-                content_parts.append(res_content[:800])  # Increased from 500 to 800
-        
-        content_to_summarize = '\n\n'.join(content_parts)
-        
-        # Summarize combined content with robust error handling
-        if content_to_summarize and len(content_to_summarize) > 100:
-            logger.info(f"[TAVILY-SUMMARIZER] Summarizing content ({len(content_to_summarize)} chars) for query: {query[:50]}...")
-            logger.info(f"[TAVILY-SUMMARIZER] Content preview: {content_to_summarize[:200]}...")
-            summarized = summarize_tavily_content(content_to_summarize, query)
-            
-            # Validate summary is not empty or too short
-            if not summarized or len(summarized.strip()) < 50:
-                logger.error(f"[TAVILY-SUMMARIZER] ❌ Summarization produced insufficient output ({len(summarized) if summarized else 0} chars)!")
-                logger.error(f"[TAVILY-SUMMARIZER] This should not happen - check logs above for errors.")
-                logger.info(f"[TAVILY-SUMMARIZER] Using raw content fallback...")
-                summarized = content_to_summarize[:500] + "..."  # Use first 500 chars as fallback
-            else:
-                logger.info(f"[TAVILY-SUMMARIZER] ✓ Summary successful: {len(summarized)} chars")
+            logger.info(f"[TAVILY-SUMMARIZER] Using Tavily's advanced AI answer directly ({len(answer)} chars) for query: {query[:50]}...")
+            logger.info(f"[TAVILY-SUMMARIZER] Answer preview: {answer[:200]}...")
+            summarized = answer.strip()
+            logger.info(f"[TAVILY-SUMMARIZER] ✓ Using optimized Tavily Answer: {len(summarized)} chars")
         else:
-            logger.warning(f"[TAVILY-SUMMARIZER] Content too short to summarize ({len(content_to_summarize)} chars)")
-            summarized = content_to_summarize if content_to_summarize else "Ingen detaljerad information tillgänglig."
+            # Fallback: If no answer, use extraction from results
+            logger.warning(f"[TAVILY-SUMMARIZER] No Tavily Answer available, extracting from results...")
+            content_parts = []
+            
+            for res in results[:5]:  # Use top 5 results
+                res_content = res.get('content', '')
+                if res_content and len(res_content.strip()) > 50:
+                    content_parts.append(res_content[:800])
+            
+            content_to_summarize = '\n\n'.join(content_parts)
+            
+            if content_to_summarize and len(content_to_summarize) > 100:
+                logger.info(f"[TAVILY-SUMMARIZER] Extracting from result content ({len(content_to_summarize)} chars)...")
+                summarized = summarize_tavily_content(content_to_summarize, query)
+                
+                if not summarized or len(summarized.strip()) < 50:
+                    logger.warning(f"[TAVILY-SUMMARIZER] Extraction produced insufficient output, using raw content...")
+                    summarized = content_to_summarize[:500] + "..."
+                else:
+                    logger.info(f"[TAVILY-SUMMARIZER] ✓ Extraction successful: {len(summarized)} chars")
+            else:
+                logger.warning(f"[TAVILY-SUMMARIZER] No content available ({len(content_to_summarize)} chars)")
+                summarized = content_to_summarize if content_to_summarize else "Ingen detaljerad information tillgänglig."
         
         # Format query section
         structured_parts.append(f"\n**{idx}. {query}**")
