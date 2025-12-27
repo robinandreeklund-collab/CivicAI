@@ -214,20 +214,16 @@ def structure_tavily_data(tavily_results: List[Dict[str, Any]]) -> str:
         answer = result.get('answer', '')
         results = result.get('results', [])
         
-        # Use Tavily's advanced AI answer as base, then apply aggressive BERT summarization for limited hardware
+        # Use Tavily's advanced AI answer DIRECTLY without any summarization (as requested by user)
+        # Only summarize other search results if Answer is missing
         if answer and len(answer.strip()) > 20:
             answer_text = answer.strip()
-            logger.info(f"[TAVILY-SUMMARIZER] Starting with Tavily's advanced AI answer ({len(answer_text)} chars) for query: {query[:50]}...")
+            logger.info(f"[TAVILY-SUMMARIZER] Using Tavily's advanced AI answer DIRECTLY ({len(answer_text)} chars) for query: {query[:50]}...")
             logger.info(f"[TAVILY-SUMMARIZER] Answer preview: {answer_text[:200]}...")
             
-            # Apply aggressive BERT summarization to make it even more compact for limited hardware
-            if len(answer_text) > 150:  # Only summarize if substantial content
-                logger.info(f"[TAVILY-SUMMARIZER] Applying aggressive BERT summarization to Answer...")
-                summarized = summarize_tavily_content(answer_text, query)
-                logger.info(f"[TAVILY-SUMMARIZER] ✓ Aggressively summarized: {len(summarized)} chars (from {len(answer_text)} chars)")
-            else:
-                summarized = answer_text
-                logger.info(f"[TAVILY-SUMMARIZER] ✓ Answer already compact: {len(summarized)} chars")
+            # NO SUMMARIZATION - use Tavily's LLM answer directly
+            summarized = answer_text
+            logger.info(f"[TAVILY-SUMMARIZER] ✓ Using Tavily's LLM answer without modification: {len(summarized)} chars")
         else:
             # Fallback: If no answer, use extraction from results
             logger.warning(f"[TAVILY-SUMMARIZER] No Tavily Answer available, extracting from results...")
