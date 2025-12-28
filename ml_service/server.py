@@ -214,17 +214,17 @@ except ImportError:
 try:
     from .tavily_summarizer import format_tavily_for_oneseek
     TAVILY_SUMMARIZER_AVAILABLE = True
-    logger.info("[TAVILY-SUMMARIZER] ✅ Tavily summarizer module imported successfully")
+    print("[TAVILY-SUMMARIZER] ✅ Tavily summarizer module imported successfully")
 except ImportError as e:
     try:
         from tavily_summarizer import format_tavily_for_oneseek
         TAVILY_SUMMARIZER_AVAILABLE = True
-        logger.info("[TAVILY-SUMMARIZER] ✅ Tavily summarizer module imported successfully (direct import)")
+        print("[TAVILY-SUMMARIZER] ✅ Tavily summarizer module imported successfully (direct import)")
     except ImportError as e2:
         TAVILY_SUMMARIZER_AVAILABLE = False
         format_tavily_for_oneseek = None
-        logger.warning(f"[TAVILY-SUMMARIZER] ❌ Could not import tavily_summarizer module: {e} / {e2}")
-        logger.warning("[TAVILY-SUMMARIZER] Will use fallback formatting with Answer field")
+        print(f"[TAVILY-SUMMARIZER] ❌ Could not import tavily_summarizer module: {e} / {e2}")
+        print("[TAVILY-SUMMARIZER] Will use fallback formatting with Answer field")
 
 try:
     from .calculate_confidence import get_confidence_calculator, calculate_confidence
