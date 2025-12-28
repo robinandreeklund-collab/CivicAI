@@ -191,20 +191,18 @@ def structure_tavily_data(tavily_results: List[Dict[str, Any]]) -> str:
     """
     Structure multiple Tavily results into clean, token-efficient Swedish format.
     
-    ULTRA-MINIMAL MODE: Only uses Tavily's advanced AI Answer (from include_answer="advanced").
-    Skips all other data (sources, result content) to minimize data volume for limited hardware.
-    
     Output format:
     **REALTIDSDATA (VERIFIERAD):**
     
     **1. [Query]**
-    → [Tavily's LLM Answer - complete and unmodified]
+    → [Summarized key facts]
+    **Källor:** [1] Title (URL) [2] Title (URL)
     
     Args:
         tavily_results: List of Tavily search results from multiple queries
     
     Returns:
-        Ultra-minimal structured Swedish text with only Tavily's LLM Answers
+        Structured Swedish text ready for OneSeek injection
     """
     if not tavily_results:
         return ""
@@ -214,24 +212,58 @@ def structure_tavily_data(tavily_results: List[Dict[str, Any]]) -> str:
     for idx, result in enumerate(tavily_results, 1):
         query = result.get('query', f'Sökning {idx}')
         answer = result.get('answer', '')
+        results = result.get('results', [])
         
-        # ULTRA-MINIMAL MODE: Only use Tavily's advanced AI answer
-        # Skip all sources, result content, and other data for maximum hardware compatibility
+        # Use Tavily's advanced AI answer DIRECTLY without any summarization (as requested by user)
+        # Only summarize other search results if Answer is missing
         if answer and len(answer.strip()) > 20:
             answer_text = answer.strip()
-            logger.info(f"[TAVILY-SUMMARIZER] ULTRA-MINIMAL MODE: Using only Tavily's LLM answer ({len(answer_text)} chars) for query: {query[:50]}...")
+            logger.info(f"[TAVILY-SUMMARIZER] Using Tavily's advanced AI answer DIRECTLY ({len(answer_text)} chars) for query: {query[:50]}...")
             logger.info(f"[TAVILY-SUMMARIZER] Answer preview: {answer_text[:200]}...")
             
-            # Format query section with ONLY the Tavily LLM answer
-            structured_parts.append(f"\n**{idx}. {query}**")
-            structured_parts.append(f"→ {answer_text}\n")
-            
-            logger.info(f"[TAVILY-SUMMARIZER] ✓ Using only Tavily's LLM answer (no sources, no result content): {len(answer_text)} chars")
+            # NO SUMMARIZATION - use Tavily's LLM answer directly
+            summarized = answer_text
+            logger.info(f"[TAVILY-SUMMARIZER] ✓ Using Tavily's LLM answer without modification: {len(summarized)} chars")
         else:
-            # Fallback: If no answer available, inform that data is unavailable
-            logger.warning(f"[TAVILY-SUMMARIZER] No Tavily Answer available for query: {query}")
-            structured_parts.append(f"\n**{idx}. {query}**")
-            structured_parts.append(f"→ Ingen detaljerad information tillgänglig från Tavily.\n")
+            # Fallback: If no answer, use extraction from results
+            logger.warning(f"[TAVILY-SUMMARIZER] No Tavily Answer available, extracting from results...")
+            content_parts = []
+            
+            for res in results[:5]:  # Use top 5 results
+                res_content = res.get('content', '')
+                if res_content and len(res_content.strip()) > 50:
+                    content_parts.append(res_content[:800])
+            
+            content_to_summarize = '\n\n'.join(content_parts)
+            
+            if content_to_summarize and len(content_to_summarize) > 100:
+                logger.info(f"[TAVILY-SUMMARIZER] Extracting from result content ({len(content_to_summarize)} chars)...")
+                summarized = summarize_tavily_content(content_to_summarize, query)
+                
+                if not summarized or len(summarized.strip()) < 50:
+                    logger.warning(f"[TAVILY-SUMMARIZER] Extraction produced insufficient output, using raw content...")
+                    summarized = content_to_summarize[:500] + "..."
+                else:
+                    logger.info(f"[TAVILY-SUMMARIZER] ✓ Extraction successful: {len(summarized)} chars")
+            else:
+                logger.warning(f"[TAVILY-SUMMARIZER] No content available ({len(content_to_summarize)} chars)")
+                summarized = content_to_summarize if content_to_summarize else "Ingen detaljerad information tillgänglig."
+        
+        # Format query section
+        structured_parts.append(f"\n**{idx}. {query}**")
+        structured_parts.append(f"→ {summarized}")
+        
+        # Add top sources
+        if results:
+            sources = []
+            for i, res in enumerate(results[:MAX_SOURCES_PER_QUERY], 1):
+                title = res.get('title', 'Källa')
+                url = res.get('url', '')
+                if url:
+                    sources.append(f"[{i}] {title} ({url})")
+            
+            if sources:
+                structured_parts.append(f"**Källor:** {' '.join(sources)}\n")
     
     final_text = '\n'.join(structured_parts)
     

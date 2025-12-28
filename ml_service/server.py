@@ -14480,7 +14480,7 @@ Börja direkt med öppningen – ingen extra inledning."""
                 llm_response = requests.post(
                     f"{server_url}/v1/chat/completions",
                     json=payload,
-                    timeout=180,  # Increased to 180 seconds (3 minutes) for limited hardware with real-time data
+                    timeout=300,  # Increased to 300 seconds (5 minutes) for extremely limited hardware with real-time data
                 )
                 llm_response.raise_for_status()
                 result = llm_response.json()
