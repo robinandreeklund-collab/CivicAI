@@ -214,13 +214,17 @@ except ImportError:
 try:
     from .tavily_summarizer import format_tavily_for_oneseek
     TAVILY_SUMMARIZER_AVAILABLE = True
-except ImportError:
+    logger.info("[TAVILY-SUMMARIZER] ✅ Tavily summarizer module imported successfully")
+except ImportError as e:
     try:
         from tavily_summarizer import format_tavily_for_oneseek
         TAVILY_SUMMARIZER_AVAILABLE = True
-    except ImportError:
+        logger.info("[TAVILY-SUMMARIZER] ✅ Tavily summarizer module imported successfully (direct import)")
+    except ImportError as e2:
         TAVILY_SUMMARIZER_AVAILABLE = False
         format_tavily_for_oneseek = None
+        logger.warning(f"[TAVILY-SUMMARIZER] ❌ Could not import tavily_summarizer module: {e} / {e2}")
+        logger.warning("[TAVILY-SUMMARIZER] Will use fallback formatting with Answer field")
 
 try:
     from .calculate_confidence import get_confidence_calculator, calculate_confidence
@@ -14066,10 +14070,13 @@ Skriv kort och strukturerat – börja direkt."""
                                 logger.info(f"[TAVILY-SUMMARIZER] ✓ Structured and summarized data ready for STEP 3")
                             else:
                                 # Fallback to original formatting if summarizer not available
-                                logger.info(f"[WS-Debate] Using original Tavily formatting (summarizer not available)")
-                                injected_data = "\n\n**REALTIDSDATA FRÅN TAVILY:**\n\n"
+                                # IMPORTANT: Use Answer field from Tavily API (include_answer="advanced")
+                                logger.info(f"[WS-Debate] Using fallback Tavily formatting with Answer field")
+                                injected_data = "\n\n**REALTIDSDATA (VERIFIERAD):**\n\n"
                                 for i, res in enumerate(tavily_results, 1):
-                                    injected_data += f"**Sökning {i}:** {res['query']}\n{res['summary']}\n\n"
+                                    # Use Answer if available (from include_answer="advanced"), otherwise fall back to summary
+                                    content = res.get('answer', '') or res.get('summary', 'Ingen information tillgänglig.')
+                                    injected_data += f"**{i}. {res['query']}**\n→ {content}\n\n"
                             
                             logger.info(f"[WS-Debate] DATA REASONING: Injected {len(tavily_results)} Tavily results into main prompt")
                             logger.info(f"[ONESEEK-DEBUG] Total injected data: {len(injected_data)} chars from {len(tavily_results)} searches")
