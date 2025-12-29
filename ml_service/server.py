@@ -13671,8 +13671,8 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                             if get_sequence:
                                 fallback_insight_event["sequence"] = get_sequence()
                             await websocket.send_json(fallback_insight_event)
-                else:
-                    logger.info(f"[WS-Debate] Insights and reasoning DISABLED by admin setting - skipping insight generation for {agent_name}")
+                    else:
+                        logger.info(f"[WS-Debate] Insights and reasoning DISABLED by admin setting - skipping insight generation for {agent_name}")
                     
                 logger.info(f"[WS-Debate] OneSeek finished processing {agent_name}'s answer")
                 
