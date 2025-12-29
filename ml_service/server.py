@@ -13654,23 +13654,23 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                             await websocket.send_json(insight_event)
                             
                         except Exception as e:
-                        logger.error(f"[WS-Debate] Error generating insight for {agent_name}: {e}")
-                        # Fallback insight
-                        async with external_responses_lock:
-                            responses_so_far = len(external_responses)
-                        insight_text = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
-                        fallback_insight_event = {
-                            "type": "live_insight",
-                            "round": round_num,
-                            "agent": agent_name,
-                            "message": insight_text,
-                            "data": {
-                                "progress": f"{responses_so_far}/{len(external_agents)}"
+                            logger.error(f"[WS-Debate] Error generating insight for {agent_name}: {e}")
+                            # Fallback insight
+                            async with external_responses_lock:
+                                responses_so_far = len(external_responses)
+                            insight_text = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
+                            fallback_insight_event = {
+                                "type": "live_insight",
+                                "round": round_num,
+                                "agent": agent_name,
+                                "message": insight_text,
+                                "data": {
+                                    "progress": f"{responses_so_far}/{len(external_agents)}"
+                                }
                             }
-                        }
-                        if get_sequence:
-                            fallback_insight_event["sequence"] = get_sequence()
-                        await websocket.send_json(fallback_insight_event)
+                            if get_sequence:
+                                fallback_insight_event["sequence"] = get_sequence()
+                            await websocket.send_json(fallback_insight_event)
                 else:
                     logger.info(f"[WS-Debate] Insights and reasoning DISABLED by admin setting - skipping insight generation for {agent_name}")
                     
