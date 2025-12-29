@@ -13586,22 +13586,23 @@ Börja direkt – ingen inledning."""
                     # Now only showing COMMENTS + INSIGHTS for external AIs
                     # REASONING is only generated for OneSeek's own answer (see oneseek_own_reasoning below)
                     
-                    # 3. INSIGHT: Generate engaging analytical observation
-                    try:
-                        # Count how many responses we've received so far
-                        async with external_responses_lock:
-                            responses_so_far = len(external_responses)
-                        
-                        # Build insight prompt
-                        # Get progress context
-                        async with external_responses_lock:
-                            responses_so_far = len(external_responses)
-                            total_agents = len(external_agents)
-                        
-                        # Use loaded prompt template or fallback to hardcoded
-                        insights_template = loaded_prompts.get('insights') if loaded_prompts else None
-                        if not insights_template:
-                            insights_template = """Du är ONESEEK med extrem syntesförmåga som ser mönster andra missar.
+                    # 3. INSIGHT: Generate engaging analytical observation (conditional based on admin setting)
+                    if _admin_settings.get("enableInsightsAndReasoning", True):
+                        try:
+                            # Count how many responses we've received so far
+                            async with external_responses_lock:
+                                responses_so_far = len(external_responses)
+                            
+                            # Build insight prompt
+                            # Get progress context
+                            async with external_responses_lock:
+                                responses_so_far = len(external_responses)
+                                total_agents = len(external_agents)
+                            
+                            # Use loaded prompt template or fallback to hardcoded
+                            insights_template = loaded_prompts.get('insights') if loaded_prompts else None
+                            if not insights_template:
+                                insights_template = """Du är ONESEEK med extrem syntesförmåga som ser mönster andra missar.
 
 DEBATTFRÅGA: {clean_question}
 
@@ -13617,32 +13618,32 @@ Börja alltid med 💡
 Skriv med pondus och originalitet – visa att du redan ser den överlägsna helheten.
 
 GE DIN INSIGHT NU (börja direkt med 💡):"""
-                        
-                        insight_prompt = insights_template.replace('{clean_question}', clean_question).replace('{agent_name}', agent_name.upper()).replace('{responses_so_far}', str(responses_so_far)).replace('{total_agents}', str(total_agents)).replace('{round_num}', str(round_num)).replace('{agent_response}', agent_response[:250] + "...")
+                            
+                            insight_prompt = insights_template.replace('{clean_question}', clean_question).replace('{agent_name}', agent_name.upper()).replace('{responses_so_far}', str(responses_so_far)).replace('{total_agents}', str(total_agents)).replace('{round_num}', str(round_num)).replace('{agent_response}', agent_response[:250] + "...")
 
-                        # Log the insight prompt to debug logger
-                        debug_logger.log_oneseek_processing(round_num, agent_name, "insights", 
-                                                            prompt=insight_prompt)
+                            # Log the insight prompt to debug logger
+                            debug_logger.log_oneseek_processing(round_num, agent_name, "insights", 
+                                                                prompt=insight_prompt)
 
-                        insight_text = generate_with_llama_server(
-                            insight_prompt,
-                            temperature=loaded_temperatures.get('insights', 0.85),
-                            max_tokens=120  # Increased from 80 to prevent truncation (15-25 words needs ~80-120 tokens with Swedish)
-                        )
-                        insight_text = insight_text.strip()
-                        
-                        # Fallback if generation fails or doesn't start with emoji
-                        if not insight_text or not insight_text.startswith('💡'):
-                            insight_text = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
-                        
-                        # Log the insight output to debug logger
-                        debug_logger.log_oneseek_processing(round_num, agent_name, "insights_output", 
-                                                            output=insight_text)
-                        
-                        insight_event = {
-                            "type": "live_insight",
-                            "round": round_num,
-                            "agent": agent_name,
+                            insight_text = generate_with_llama_server(
+                                insight_prompt,
+                                temperature=loaded_temperatures.get('insights', 0.85),
+                                max_tokens=120  # Increased from 80 to prevent truncation (15-25 words needs ~80-120 tokens with Swedish)
+                            )
+                            insight_text = insight_text.strip()
+                            
+                            # Fallback if generation fails or doesn't start with emoji
+                            if not insight_text or not insight_text.startswith('💡'):
+                                insight_text = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
+                            
+                            # Log the insight output to debug logger
+                            debug_logger.log_oneseek_processing(round_num, agent_name, "insights_output", 
+                                                                output=insight_text)
+                            
+                            insight_event = {
+                                "type": "live_insight",
+                                "round": round_num,
+                                "agent": agent_name,
                             "message": insight_text,
                             "data": {
                                 "progress": f"{responses_so_far}/{len(external_agents)}"
@@ -13670,8 +13671,10 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                         if get_sequence:
                             fallback_insight_event["sequence"] = get_sequence()
                         await websocket.send_json(fallback_insight_event)
+                else:
+                    logger.info(f"[WS-Debate] Insights and reasoning DISABLED by admin setting - skipping insight generation for {agent_name}")
                     
-                    logger.info(f"[WS-Debate] OneSeek finished processing {agent_name}'s answer")
+                logger.info(f"[WS-Debate] OneSeek finished processing {agent_name}'s answer")
                 
                 return response
             
@@ -14372,10 +14375,17 @@ Börja direkt med öppningen – ingen extra inledning."""
             # ===========================================================================
             logger.info(f"[ONESEEK-DEBUG] ================================================================================")
             logger.info(f"[ONESEEK-DEBUG] STEP 3: GENERATING FINAL CONTRIBUTION")
-            # Prepare Tavily data for injection (empty if no data)
+            # Prepare Tavily data for injection (conditional based on admin setting)
             tavily_data_formatted = ""
-            if injected_data:
-                tavily_data_formatted = injected_data
+            if _admin_settings.get("enableTavilyInStep3", True):
+                if injected_data:
+                    tavily_data_formatted = injected_data
+                    logger.info(f"[ONESEEK-DEBUG] Tavily data: ENABLED ({len(injected_data)} chars)")
+                else:
+                    logger.info(f"[ONESEEK-DEBUG] Tavily data: ENABLED but no data available")
+            else:
+                logger.info(f"[ONESEEK-DEBUG] Tavily data: DISABLED by admin setting")
+                tavily_data_formatted = "(Tavily-sökning inaktiverad i admin-inställningar)"
             
             logger.info(f"[ONESEEK-DEBUG] Round: {round_num}")
             logger.info(f"[ONESEEK-DEBUG] Prompt Template: {template_key}")
@@ -14568,10 +14578,11 @@ Börja direkt med öppningen – ingen extra inledning."""
                     **stream_extra_data
                 )
                 
-                # Generate reasoning/thought chain for OneSeek's own answer
+                # Generate reasoning/thought chain for OneSeek's own answer (conditional based on admin setting)
                 # Show how OneSeek used insights from other responses to build its answer
                 reasoning = ""
-                try:
+                if _admin_settings.get("enableInsightsAndReasoning", True):
+                    try:
                     # Build context: responses from other AI models in this round
                     responses_in_round = ""
                     for chain_item in knowledge_chain:
@@ -14656,16 +14667,18 @@ Förklara HUR du byggde ditt svar:
                     
                     logger.info(f"[WS-Debate] Generated detailed reasoning for OneSeek's answer in round {round_num} ({len(reasoning)} chars)")
                     
-                except Exception as e:
-                    logger.error(f"[WS-Debate] Error generating OneSeek reasoning: {e}")
-                    # More dynamic fallback that at least tries to mention specific agents
-                    agents_mentioned = [r['agent'] for r in external_responses if r.get('success', False)]
-                    if agents_mentioned:
-                        reasoning = f"Vägde insikter från {', '.join(agents_mentioned[:3])} och integrerade deras olika perspektiv. Fokuserade på att balansera faktabaserade argument med kreativa lösningsförslag baserat på kvalitetsbedömningarna."
-                    else:
-                        reasoning = "Syntetiserade tillgängliga perspektiv och byggde ett balanserat svar som tar hänsyn till debattens olika dimensioner."
+                    except Exception as e:
+                        logger.error(f"[WS-Debate] Error generating OneSeek reasoning: {e}")
+                        # More dynamic fallback that at least tries to mention specific agents
+                        agents_mentioned = [r['agent'] for r in external_responses if r.get('success', False)]
+                        if agents_mentioned:
+                            reasoning = f"Vägde insikter från {', '.join(agents_mentioned[:3])} och integrerade deras olika perspektiv. Fokuserade på att balansera faktabaserade argument med kreativa lösningsförslag baserat på kvalitetsbedömningarna."
+                        else:
+                            reasoning = "Syntetiserade tillgängliga perspektiv och byggde ett balanserat svar som tar hänsyn till debattens olika dimensioner."
+                else:
+                    logger.info(f"[WS-Debate] Insights and reasoning DISABLED by admin setting - skipping reasoning generation for OneSeek's own answer")
                 
-                # Emit OneSeek's reasoning for its own answer
+                # Emit OneSeek's reasoning for its own answer (only if generated)
                 if reasoning:
                     oneseek_reasoning_event = {
                         "type": "oneseek_own_reasoning",
@@ -15683,6 +15696,8 @@ _admin_settings = {
     "contextWindow": 16384,  # Default context window size
     "webMaxChars": 6000,  # Default max chars for web fetch (browse_page)
     "autoFollowUpSocionomen": False,  # Default: auto follow-up disabled
+    "enableTavilyInStep3": True,  # Default: Include Tavily search data in STEP 3 final prompt
+    "enableInsightsAndReasoning": True,  # Default: Generate insights and reasoning after each response
 }
 
 @app.get("/api/settings/typo-check")
@@ -15721,7 +15736,8 @@ async def set_typo_check_setting(request: Request):
 async def get_admin_settings():
     """
     Get all admin configurable settings (memory-based).
-    Returns current values for outputMaxTokens, contextWindow, webMaxChars, autoFollowUpSocionomen.
+    Returns current values for outputMaxTokens, contextWindow, webMaxChars, autoFollowUpSocionomen,
+    enableTavilyInStep3, enableInsightsAndReasoning.
     """
     return {
         "success": True,
@@ -15730,12 +15746,16 @@ async def get_admin_settings():
             "contextWindow": _admin_settings.get("contextWindow", 16384),
             "webMaxChars": _admin_settings.get("webMaxChars", 6000),
             "autoFollowUpSocionomen": _admin_settings.get("autoFollowUpSocionomen", False),
+            "enableTavilyInStep3": _admin_settings.get("enableTavilyInStep3", True),
+            "enableInsightsAndReasoning": _admin_settings.get("enableInsightsAndReasoning", True),
         },
         "defaults": {
             "outputMaxTokens": 1200,
             "contextWindow": 16384,
             "webMaxChars": 6000,
             "autoFollowUpSocionomen": False,
+            "enableTavilyInStep3": True,
+            "enableInsightsAndReasoning": True,
         }
     }
 
@@ -15743,7 +15763,8 @@ async def get_admin_settings():
 async def update_admin_settings(request: Request):
     """
     Update admin configurable settings (memory-based).
-    Accepts: outputMaxTokens, contextWindow, webMaxChars, autoFollowUpSocionomen.
+    Accepts: outputMaxTokens, contextWindow, webMaxChars, autoFollowUpSocionomen,
+    enableTavilyInStep3, enableInsightsAndReasoning.
     """
     try:
         data = await request.json()
@@ -15770,6 +15791,14 @@ async def update_admin_settings(request: Request):
         if "autoFollowUpSocionomen" in data:
             _admin_settings["autoFollowUpSocionomen"] = bool(data["autoFollowUpSocionomen"])
         
+        if "enableTavilyInStep3" in data:
+            _admin_settings["enableTavilyInStep3"] = bool(data["enableTavilyInStep3"])
+            logger.info(f"[ADMIN] Tavily in STEP 3: {'ENABLED' if _admin_settings['enableTavilyInStep3'] else 'DISABLED'}")
+        
+        if "enableInsightsAndReasoning" in data:
+            _admin_settings["enableInsightsAndReasoning"] = bool(data["enableInsightsAndReasoning"])
+            logger.info(f"[ADMIN] Insights and Reasoning: {'ENABLED' if _admin_settings['enableInsightsAndReasoning'] else 'DISABLED'}")
+        
         logger.info(f"[ADMIN] Settings updated: {data}")
         
         return {
@@ -15779,6 +15808,8 @@ async def update_admin_settings(request: Request):
                 "contextWindow": _admin_settings.get("contextWindow", 16384),
                 "webMaxChars": _admin_settings.get("webMaxChars", 6000),
                 "autoFollowUpSocionomen": _admin_settings.get("autoFollowUpSocionomen", False),
+                "enableTavilyInStep3": _admin_settings.get("enableTavilyInStep3", True),
+                "enableInsightsAndReasoning": _admin_settings.get("enableInsightsAndReasoning", True),
             },
             "message": "Settings updated successfully"
         }
