@@ -14123,7 +14123,9 @@ Skriv kort och strukturerat – börja direkt."""
                         
                     except Exception as e:
                         logger.error(f"[WS-Debate] Error executing Tavily searches: {e}")
-                        injected_data = ""
+                        # Don't reset injected_data if it was already successfully populated
+                        if not injected_data:
+                            injected_data = ""
             else:
                 logger.info(f"[WS-Debate] DATA REASONING: No new data needed (ONESEEK decided sufficient context exists)")
             
