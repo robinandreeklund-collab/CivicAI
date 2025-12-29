@@ -13644,16 +13644,16 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                                 "type": "live_insight",
                                 "round": round_num,
                                 "agent": agent_name,
-                            "message": insight_text,
-                            "data": {
-                                "progress": f"{responses_so_far}/{len(external_agents)}"
+                                "message": insight_text,
+                                "data": {
+                                    "progress": f"{responses_so_far}/{len(external_agents)}"
+                                }
                             }
-                        }
-                        if get_sequence:
-                            insight_event["sequence"] = get_sequence()
-                        await websocket.send_json(insight_event)
-                        
-                    except Exception as e:
+                            if get_sequence:
+                                insight_event["sequence"] = get_sequence()
+                            await websocket.send_json(insight_event)
+                            
+                        except Exception as e:
                         logger.error(f"[WS-Debate] Error generating insight for {agent_name}: {e}")
                         # Fallback insight
                         async with external_responses_lock:
