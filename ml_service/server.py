@@ -14158,6 +14158,96 @@ Skriv kort och strukturerat – börja direkt."""
                         # Show COMPLETE previous round responses (no truncation)
                         full_previous_round += f"**{resp['agent'].upper()}**:\n{resp['response']}\n\n"
             
+            # Build short_previous_round - Context compression for OneSeek
+            # Summarize other agents' contributions, keep OneSeek's complete
+            short_previous_round = ""
+            if debate_rounds:
+                last_round = debate_rounds[-1]
+                round_num_prev = last_round['round']
+                short_previous_round = f"RUNDA {round_num_prev} (KOMPRIMERAD KONTEXT):\n\n"
+                
+                # Collect all non-OneSeek responses for summarization
+                other_agents_responses = []
+                oneseek_response = None
+                
+                for resp in last_round['responses']:
+                    if resp.get('success', False):
+                        if resp['agent'].lower() == 'oneseek':
+                            oneseek_response = resp
+                        else:
+                            other_agents_responses.append(resp)
+                
+                # Summarize other agents' contributions (if any)
+                if other_agents_responses:
+                    try:
+                        # Build summary prompt for all other agents
+                        agents_text = ""
+                        for resp in other_agents_responses:
+                            agents_text += f"\n**{resp['agent'].upper()}**:\n{resp['response']}\n"
+                        
+                        summary_prompt = f"""Summera dessa AI-modellers bidrag till debatten. För varje modell, inkludera:
+- Namn/modell
+- Ståndpunkt/position
+- 2-3 huvudpunkter
+- Viktiga data/statistik (om nämnt)
+- Källor (om nämnt)
+- Kärnargument
+
+Håll det kortfattat men bevara viktiga detaljer.
+
+DEBATTFRÅGA: {clean_question}
+
+BIDRAG ATT SUMMERA:
+{agents_text}
+
+GE KOMPAKT SUMMERING (börja direkt):"""
+                        
+                        # Generate summary using LLM
+                        summary_response = requests.post(
+                            f"{server_url}/v1/chat/completions",
+                            json={
+                                "messages": [
+                                    {"role": "system", "content": "Du är en expert på att summera och strukturera information kompakt."},
+                                    {"role": "user", "content": summary_prompt}
+                                ],
+                                "max_tokens": 500,
+                                "temperature": 0.3,  # Low temperature for factual summarization
+                            },
+                            timeout=30,
+                        )
+                        summary_response.raise_for_status()
+                        summary_result = summary_response.json()
+                        
+                        if 'choices' in summary_result and len(summary_result['choices']) > 0:
+                            agents_summary = summary_result['choices'][0].get('message', {}).get('content', '').strip()
+                        else:
+                            agents_summary = summary_result.get('content', '').strip()
+                        
+                        if agents_summary:
+                            short_previous_round += f"**ANDRA AI-MODELLER (SUMMERAT)**:\n{agents_summary}\n\n"
+                            logger.info(f"[WS-Debate] Generated summary of {len(other_agents_responses)} agents' contributions ({len(agents_summary)} chars)")
+                        else:
+                            # Fallback: Very brief bullet points
+                            short_previous_round += "**ANDRA AI-MODELLER**:\n"
+                            for resp in other_agents_responses[:3]:  # Max 3 agents
+                                short_previous_round += f"- **{resp['agent'].upper()}**: {resp['response'][:100]}...\n"
+                            short_previous_round += "\n"
+                    
+                    except Exception as e:
+                        logger.error(f"[WS-Debate] Error generating agents summary: {e}")
+                        # Fallback: Very brief bullet points
+                        short_previous_round += "**ANDRA AI-MODELLER**:\n"
+                        for resp in other_agents_responses[:3]:  # Max 3 agents
+                            short_previous_round += f"- **{resp['agent'].upper()}**: {resp['response'][:100]}...\n"
+                        short_previous_round += "\n"
+                
+                # Add OneSeek's COMPLETE contribution
+                if oneseek_response:
+                    short_previous_round += f"**ONESEEK (KOMPLETT)**:\n{oneseek_response['response']}\n\n"
+                    logger.info(f"[WS-Debate] Included OneSeek's complete contribution ({len(oneseek_response['response'])} chars)")
+                
+                logger.info(f"[WS-Debate] Built short_previous_round: {len(short_previous_round)} chars (vs full_previous_round: {len(full_previous_round)} chars)")
+            
             # Build chain_so_far - only responses that came BEFORE ONESEEK in current round
             chain_so_far = ""
             if external_responses:
@@ -14395,6 +14485,8 @@ Börja direkt med öppningen – ingen extra inledning."""
             logger.info(f"[ONESEEK-DEBUG]   ✅ raw_contribution: {len(raw_contribution)} chars")
             logger.info(f"[ONESEEK-DEBUG]   ✅ tavily_data: {len(tavily_data_formatted)} chars ({len(tavily_results) if tavily_results else 0} search results)")
             logger.info(f"[ONESEEK-DEBUG]   ✅ chain_so_far: {len(chain_so_far)} chars")
+            logger.info(f"[ONESEEK-DEBUG]   ✅ short_previous_round: {len(short_previous_round)} chars (compressed context)")
+            logger.info(f"[ONESEEK-DEBUG]   ✅ full_previous_round: {len(full_previous_round)} chars (complete context)")
             logger.info(f"[ONESEEK-DEBUG]   ✅ clean_question: provided")
             logger.info(f"[ONESEEK-DEBUG] ================================================================================")
             
@@ -14441,6 +14533,13 @@ Börja direkt med öppningen – ingen extra inledning."""
                     f.write(f"Content:\n{chain_so_far}\n")
                     f.write("-" * 100 + "\n\n")
                     
+                    # 3b. SHORT PREVIOUS ROUND (compressed context for OneSeek)
+                    f.write("--- INPUT 3b: SHORT PREVIOUS ROUND (compressed context) ---\n")
+                    f.write(f"Length: {len(short_previous_round)} chars\n")
+                    f.write(f"Content:\n{short_previous_round if short_previous_round else '(No previous round)'}\n")
+                    f.write(f"Note: Other agents summarized, OneSeek complete\n")
+                    f.write("-" * 100 + "\n\n")
+                    
                     # 4. COMPLETE FINAL PROMPT (what model receives)
                     f.write("--- COMPLETE FINAL PROMPT (sent to model) ---\n")
                     # We'll write this after we build it below
@@ -14461,12 +14560,13 @@ Börja direkt med öppningen – ingen extra inledning."""
                     f.write(f"  - raw_contribution: ({len(raw_contribution)} chars from STEP 1)\n")
                     f.write(f"  - tavily_data: ({len(tavily_data_formatted)} chars from STEP 2, {len(tavily_results) if tavily_results else 0} searches)\n")
                     f.write(f"  - chain_so_far: ({len(chain_so_far)} chars)\n")
+                    f.write(f"  - short_previous_round: ({len(short_previous_round)} chars - compressed context)\n")
                     f.write(f"  - clean_question: {clean_question}\n\n")
             except Exception as e:
                 logger.error(f"[ONESEEK-DEBUG] Failed to write STEP 3 start to debug file: {e}")
             
-            # Replace all parameters including {tavily_data} AND {raw_contribution}
-            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)").replace('{tavily_data}', tavily_data_formatted).replace('{raw_contribution}', raw_contribution)
+            # Replace all parameters including {tavily_data}, {raw_contribution}, AND {short_previous_round}
+            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{short_previous_round}', short_previous_round if short_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)").replace('{tavily_data}', tavily_data_formatted).replace('{raw_contribution}', raw_contribution)
             
             oneseek_context = oneseek_main_prompt
             
