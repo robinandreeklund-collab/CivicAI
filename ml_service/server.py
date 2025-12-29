@@ -14185,35 +14185,37 @@ Skriv kort och strukturerat – börja direkt."""
                         for resp in other_agents_responses:
                             agents_text += f"\n**{resp['agent'].upper()}**:\n{resp['response']}\n"
                         
-                        summary_prompt = f"""Summera dessa AI-modellers bidrag till debatten. För varje modell, inkludera:
-- Namn/modell
-- Ståndpunkt/position
-- 2-3 huvudpunkter
-- Viktiga data/statistik (om nämnt)
-- Källor (om nämnt)
-- Kärnargument
+                        summary_prompt = f"""Summera dessa AI-modellers bidrag till debatten. 
 
-Håll det kortfattat men bevara viktiga detaljer.
+VIKTIGT: För varje modell, skapa en SEPARAT summering med modellens namn FÖRST, sedan dess bidrag. Blanda INTE ihop information från olika modeller.
+
+För varje modell, strukturera såhär:
+**[MODELLNAMN]:**
+- Ståndpunkt/position
+- 2-3 huvudpunkter från DENNA modells bidrag
+- Viktiga data/statistik som DENNA modell nämnde
+- Källor som DENNA modell hänvisade till
+- Kärnargument från DENNA modell
 
 DEBATTFRÅGA: {clean_question}
 
 BIDRAG ATT SUMMERA:
 {agents_text}
 
-GE KOMPAKT SUMMERING (börja direkt):"""
+GE KOMPLETT SUMMERING MED KORREKT TILLSKRIVNING (börja direkt):"""
                         
-                        # Generate summary using LLM
+                        # Generate summary using LLM - NO TOKEN LIMIT to get complete summary
                         summary_response = requests.post(
                             f"{server_url}/v1/chat/completions",
                             json={
                                 "messages": [
-                                    {"role": "system", "content": "Du är en expert på att summera och strukturera information kompakt."},
+                                    {"role": "system", "content": "Du är en expert på att summera och strukturera information med korrekt tillskrivning. Var noga med att hålla varje modells bidrag separerat och korrekt tillskrivet."},
                                     {"role": "user", "content": summary_prompt}
                                 ],
-                                "max_tokens": 500,
+                                # NO max_tokens - let model generate complete summary
                                 "temperature": 0.3,  # Low temperature for factual summarization
                             },
-                            timeout=30,
+                            timeout=60,  # Increased timeout for longer generation
                         )
                         summary_response.raise_for_status()
                         summary_result = summary_response.json()
