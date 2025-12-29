@@ -13995,6 +13995,7 @@ Skriv kort och strukturerat – börja direkt."""
             
             # Execute Tavily searches if data needs identified
             injected_data = ""
+            tavily_answers_only = ""  # NEW: Separate parameter for Tavily LLM answers only
             tavily_results = []  # Initialize outside if block to avoid UnboundLocalError
             if data_reasoning_text and "INGEN NY DATA BEHÖVS" not in data_reasoning_text.upper():
                 # Check if Tavily integration is available
@@ -14065,7 +14066,21 @@ Skriv kort och strukturerat – börja direkt."""
                                     logger.info(f"[ONESEEK-DEBUG]   Summary length: {len(summary)} chars")
                         
                         # Format injected data (tavily_results is now accessible here)
+                        # Create SEPARATE parameter for Tavily Answers only (user request)
+                        tavily_answers_only = ""
                         if tavily_results:
+                            # Build Answer-only parameter (no sources, no structure)
+                            answer_parts = []
+                            for i, res in enumerate(tavily_results, 1):
+                                query = res.get('query', f'Sökning {i}')
+                                answer = res.get('answer', '')
+                                if answer and len(answer.strip()) > 20:
+                                    answer_parts.append(f"**{i}. {query}**\n→ {answer.strip()}\n")
+                            
+                            if answer_parts:
+                                tavily_answers_only = "\n".join(answer_parts)
+                                logger.info(f"[TAVILY-ANSWER] Created answer-only parameter: {len(tavily_answers_only)} chars from {len(answer_parts)} answers")
+                            
                             # Use backend summarization if available, otherwise fallback to original format
                             if TAVILY_SUMMARIZER_AVAILABLE and format_tavily_for_oneseek:
                                 logger.info(f"[TAVILY-SUMMARIZER] Processing {len(tavily_results)} results with backend summarization...")
@@ -14083,6 +14098,7 @@ Skriv kort och strukturerat – börja direkt."""
                             
                             logger.info(f"[WS-Debate] DATA REASONING: Injected {len(tavily_results)} Tavily results into main prompt")
                             logger.info(f"[ONESEEK-DEBUG] Total injected data: {len(injected_data)} chars from {len(tavily_results)} searches")
+                            logger.info(f"[ONESEEK-DEBUG] Tavily answers only: {len(tavily_answers_only)} chars")
                             logger.info(f"[ONESEEK-DEBUG] =========================================")
                             logger.info(f"[WS-Debate] ========== TAVILY DATA INJECTED (PREVIEW) ==========")
                             # Log first 500 chars of injected data for debugging
@@ -14531,6 +14547,14 @@ Börja direkt med öppningen – ingen extra inledning."""
                     f.write(f"Content:\n{tavily_data_formatted if tavily_data_formatted else '(No Tavily data)'}\n")
                     f.write("-" * 100 + "\n\n")
                     
+                    # 2b. TAVILY ANSWERS ONLY (LLM responses only, no sources)
+                    f.write("--- INPUT 2b: TAVILY ANSWERS ONLY (LLM responses) ---\n")
+                    f.write(f"Length: {len(tavily_answers_only)} chars\n")
+                    f.write(f"Number of answers: {len(tavily_results) if tavily_results else 0}\n")
+                    f.write(f"Content:\n{tavily_answers_only if tavily_answers_only else '(No Tavily answers)'}\n")
+                    f.write(f"Note: This contains ONLY Tavily's LLM answers, without sources or structure\n")
+                    f.write("-" * 100 + "\n\n")
+                    
                     # 3. CHAIN SO FAR (debate context)
                     f.write("--- INPUT 3: CHAIN SO FAR (debate context) ---\n")
                     f.write(f"Length: {len(chain_so_far)} chars\n")
@@ -14563,14 +14587,15 @@ Börja direkt med öppningen – ingen extra inledning."""
                     f.write("Input Parameters:\n")
                     f.write(f"  - raw_contribution: ({len(raw_contribution)} chars from STEP 1)\n")
                     f.write(f"  - tavily_data: ({len(tavily_data_formatted)} chars from STEP 2, {len(tavily_results) if tavily_results else 0} searches)\n")
+                    f.write(f"  - tavily_answer: ({len(tavily_answers_only)} chars - LLM answers only, no sources)\n")
                     f.write(f"  - chain_so_far: ({len(chain_so_far)} chars)\n")
                     f.write(f"  - short_previous_round: ({len(short_previous_round)} chars - compressed context)\n")
                     f.write(f"  - clean_question: {clean_question}\n\n")
             except Exception as e:
                 logger.error(f"[ONESEEK-DEBUG] Failed to write STEP 3 start to debug file: {e}")
             
-            # Replace all parameters including {tavily_data}, {raw_contribution}, AND {short_previous_round}
-            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{short_previous_round}', short_previous_round if short_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)").replace('{tavily_data}', tavily_data_formatted).replace('{raw_contribution}', raw_contribution)
+            # Replace all parameters including {tavily_data}, {tavily_answer}, {raw_contribution}, AND {short_previous_round}
+            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{short_previous_round}', short_previous_round if short_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)").replace('{tavily_data}', tavily_data_formatted).replace('{tavily_answer}', tavily_answers_only if tavily_answers_only else "(Inga Tavily LLM-svar tillgängliga)").replace('{raw_contribution}', raw_contribution)
             
             oneseek_context = oneseek_main_prompt
             
