@@ -14683,24 +14683,24 @@ Börja direkt med öppningen – ingen extra inledning."""
                 reasoning = ""
                 if _admin_settings.get("enableInsightsAndReasoning", True):
                     try:
-                    # Build context: responses from other AI models in this round
-                    responses_in_round = ""
-                    for chain_item in knowledge_chain:
-                        if chain_item['round'] == round_num and chain_item.get('agent') != 'oneseek' and 'response' in chain_item:
-                            responses_in_round += f"**{chain_item['agent'].upper()}**: {chain_item['response'][:200]}...\n\n"
-                    
-                    # Build context: OneSeek's insights from this round
-                    insights_from_round = ""
-                    for insight_item in knowledge_chain:
-                        if insight_item['round'] == round_num and insight_item.get('agent') != 'oneseek' and 'insight' in insight_item:
-                            insights_from_round += f"- Om {insight_item['agent'].upper()}: {insight_item['insight']}\n"
-                    
-                    # Get reasoning_own prompt template (configurable from admin)
-                    reasoning_own_template = loaded_prompts.get('reasoning_own') if loaded_prompts else None
-                    
-                    if not reasoning_own_template:
-                        # Fallback if template not loaded
-                        reasoning_own_template = """Du är ONESEEK. Du har precis gett ditt debattsvar i runda {round_num}.
+                        # Build context: responses from other AI models in this round
+                        responses_in_round = ""
+                        for chain_item in knowledge_chain:
+                            if chain_item['round'] == round_num and chain_item.get('agent') != 'oneseek' and 'response' in chain_item:
+                                responses_in_round += f"**{chain_item['agent'].upper()}**: {chain_item['response'][:200]}...\n\n"
+                        
+                        # Build context: OneSeek's insights from this round
+                        insights_from_round = ""
+                        for insight_item in knowledge_chain:
+                            if insight_item['round'] == round_num and insight_item.get('agent') != 'oneseek' and 'insight' in insight_item:
+                                insights_from_round += f"- Om {insight_item['agent'].upper()}: {insight_item['insight']}\n"
+                        
+                        # Get reasoning_own prompt template (configurable from admin)
+                        reasoning_own_template = loaded_prompts.get('reasoning_own') if loaded_prompts else None
+                        
+                        if not reasoning_own_template:
+                            # Fallback if template not loaded
+                            reasoning_own_template = """Du är ONESEEK. Du har precis gett ditt debattsvar i runda {round_num}.
 
 DEBATTFRÅGA: {clean_question}
 
@@ -14728,45 +14728,45 @@ Förklara HUR du byggde ditt svar:
 - Visa VARFÖR din syntes är värdefull för debatten
 
 **Börja direkt med substans (ingen etikett/prefix).**"""
-                    
-                    # Fill in template parameters
-                    reasoning_prompt = reasoning_own_template.format(
-                        round_num=round_num,
-                        clean_question=clean_question,
-                        oneseek_answer=answer[:500],  # Include more of the answer for context
-                        responses_in_round=responses_in_round if responses_in_round else "Inga andra svar tillgängliga ännu.",
-                        insights_from_round=insights_from_round if insights_from_round else "Inga insights genererade ännu."
-                    )
-                    
-                    reasoning_payload = {
-                        "messages": [
-                            {"role": "system", "content": "Du är ONESEEK - ge ett detaljerat, specifikt och dynamiskt resonemang om hur du byggde ditt svar. Referera till konkreta detaljer från andra AI-modellers svar. Undvik generella fraser."},
-                            {"role": "user", "content": reasoning_prompt}
-                        ],
-                        "max_tokens": 400,  # Increased from 300 to prevent truncation for detailed reasoning
-                        "temperature": loaded_temperatures.get('reasoning_own', 0.75),  # Configurable temperature for OneSeek's own reasoning
-                    }
-                    
-                    reasoning_response = requests.post(
-                        f"{server_url}/v1/chat/completions",
-                        json=reasoning_payload,
-                        timeout=90,  # Increased from 45 to 90 seconds for complex reasoning with full context
-                    )
-                    reasoning_response.raise_for_status()
-                    reasoning_result = reasoning_response.json()
-                    
-                    if 'choices' in reasoning_result and len(reasoning_result['choices']) > 0:
-                        reasoning = reasoning_result['choices'][0].get('message', {}).get('content', '').strip()
-                    else:
-                        reasoning = reasoning_result.get('content', '').strip()
-                    
-                    # Validate reasoning is substantial and not generic
-                    if reasoning and len(reasoning) < 50:
-                        logger.warning(f"[WS-Debate] Reasoning too short ({len(reasoning)} chars), regenerating...")
-                        raise ValueError("Reasoning too brief")
-                    
-                    logger.info(f"[WS-Debate] Generated detailed reasoning for OneSeek's answer in round {round_num} ({len(reasoning)} chars)")
-                    
+                        
+                        # Fill in template parameters
+                        reasoning_prompt = reasoning_own_template.format(
+                            round_num=round_num,
+                            clean_question=clean_question,
+                            oneseek_answer=answer[:500],  # Include more of the answer for context
+                            responses_in_round=responses_in_round if responses_in_round else "Inga andra svar tillgängliga ännu.",
+                            insights_from_round=insights_from_round if insights_from_round else "Inga insights genererade ännu."
+                        )
+                        
+                        reasoning_payload = {
+                            "messages": [
+                                {"role": "system", "content": "Du är ONESEEK - ge ett detaljerat, specifikt och dynamiskt resonemang om hur du byggde ditt svar. Referera till konkreta detaljer från andra AI-modellers svar. Undvik generella fraser."},
+                                {"role": "user", "content": reasoning_prompt}
+                            ],
+                            "max_tokens": 400,  # Increased from 300 to prevent truncation for detailed reasoning
+                            "temperature": loaded_temperatures.get('reasoning_own', 0.75),  # Configurable temperature for OneSeek's own reasoning
+                        }
+                        
+                        reasoning_response = requests.post(
+                            f"{server_url}/v1/chat/completions",
+                            json=reasoning_payload,
+                            timeout=90,  # Increased from 45 to 90 seconds for complex reasoning with full context
+                        )
+                        reasoning_response.raise_for_status()
+                        reasoning_result = reasoning_response.json()
+                        
+                        if 'choices' in reasoning_result and len(reasoning_result['choices']) > 0:
+                            reasoning = reasoning_result['choices'][0].get('message', {}).get('content', '').strip()
+                        else:
+                            reasoning = reasoning_result.get('content', '').strip()
+                        
+                        # Validate reasoning is substantial and not generic
+                        if reasoning and len(reasoning) < 50:
+                            logger.warning(f"[WS-Debate] Reasoning too short ({len(reasoning)} chars), regenerating...")
+                            raise ValueError("Reasoning too brief")
+                        
+                        logger.info(f"[WS-Debate] Generated detailed reasoning for OneSeek's answer in round {round_num} ({len(reasoning)} chars)")
+                        
                     except Exception as e:
                         logger.error(f"[WS-Debate] Error generating OneSeek reasoning: {e}")
                         # More dynamic fallback that at least tries to mention specific agents
