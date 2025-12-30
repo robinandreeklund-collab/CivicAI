@@ -13008,6 +13008,7 @@ async def websocket_personality_inference(websocket: WebSocket):
 async def stream_text_tokens(websocket: WebSocket, text: str, event_type: str, agent: str = None, tokens_per_second: int = 65, **extra_data):
     """
     Stream text token-by-token to simulate realistic AI typing speed.
+    Preserves newlines and paragraph formatting.
     
     Args:
         websocket: WebSocket connection
@@ -13024,20 +13025,34 @@ async def stream_text_tokens(websocket: WebSocket, text: str, event_type: str, a
     DEFAULT_WORD_DELAY = 0.015  # Fallback delay if tokens_per_second is 0
     STREAMING_CHUNK_SIZE = 4  # Send every N words for smooth streaming
     
-    # Split into words (approximate tokens)
-    words = text.split()
+    # Split by whitespace but preserve newlines and structure
+    # Split into tokens (words + whitespace) to preserve formatting
+    import re
+    # Match words and whitespace separately
+    tokens = re.findall(r'\S+|\s+', text)
+    
     delay_per_word = 1.0 / tokens_per_second if tokens_per_second > 0 else DEFAULT_WORD_DELAY
     
     accumulated_text = ""
-    for i, word in enumerate(words):
-        accumulated_text += word + " "
+    word_count = 0
+    for i, token in enumerate(tokens):
+        accumulated_text += token
+        
+        # Only count non-whitespace tokens as words
+        if token.strip():
+            word_count += 1
         
         # Send every STREAMING_CHUNK_SIZE words for smooth streaming
-        if (i + 1) % STREAMING_CHUNK_SIZE == 0 or i == len(words) - 1:
+        # Or at the end, or after newlines (to preserve paragraph breaks)
+        is_last = (i == len(tokens) - 1)
+        has_newline = '\n' in token
+        should_send = (word_count % STREAMING_CHUNK_SIZE == 0) or is_last or has_newline
+        
+        if should_send and word_count > 0:
             event_data = {
                 "type": event_type,
-                "text": accumulated_text.strip(),
-                "complete": (i == len(words) - 1)
+                "text": accumulated_text,  # Don't strip - preserve whitespace/newlines
+                "complete": is_last
             }
             if agent:
                 event_data["agent"] = agent
