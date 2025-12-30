@@ -14224,6 +14224,9 @@ VIKTIGT: För varje modell, skapa en SEPARAT summering med modellens namn FÖRST
 
 För varje modell, strukturera såhär:
 **[MODELLNAMN]:**
+*Sammanfattning:* [En kortfattad prosatext på 2-3 meningar som sammanfattar modellens huvudbudskap och ståndpunkt]
+
+*Nyckelpoäng:*
 - Ståndpunkt/position
 - 2-3 huvudpunkter från DENNA modells bidrag
 - Viktiga data/statistik som DENNA modell nämnde
