@@ -569,9 +569,9 @@ async function handleZeroCompareFlow(req, res) {
       try {
         console.log(`  Analyzing ${extResponse.agent} with MTA-16...`);
         
-        // Truncate response if too long to stay within OpenSeek's 10K char limit
-        // The template + question + agent takes ~6000 chars, so we limit response to 4000
-        const MAX_RESPONSE_LENGTH = 4000;
+        // Truncate response if too long to stay within OpenSeek's 20K char limit
+        // The template + question + agent takes ~6000 chars, so we limit response to 8000
+        const MAX_RESPONSE_LENGTH = 8000;
         const TRUNCATION_MARKER = '\n\n[... response truncated for analysis ...]\n\n';
         const KEEP_END_CHARS = 100; // Keep end for conclusions/context
         const KEEP_START_CHARS = MAX_RESPONSE_LENGTH - TRUNCATION_MARKER.length - KEEP_END_CHARS;
