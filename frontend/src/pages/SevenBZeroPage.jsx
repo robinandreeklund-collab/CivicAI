@@ -9,6 +9,7 @@ import { handleFollowUpAction } from '../services/chat';
 import DebateRoundDisplay from '../components/DebateRoundDisplay';
 import Tankekedja from "../components/Tankekedja";
 import MTA16Analysis from "../components/MTA16Analysis";
+import MTA16ComparisonTable from "../components/MTA16ComparisonTable";
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -3617,10 +3618,10 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
-                  {/* MTA-16 Summary - Show in compare mode after ONESEEK's answer */}
+                  {/* MTA-16 Comparison Table - Show in compare mode after ONESEEK's answer */}
                   {!msg.debateMode && !msg.isTyping && msg.compareMode && msg.externalResponses && msg.externalResponses.length > 0 && (
                     <div className="mt-6">
-                      <MTA16Analysis 
+                      <MTA16ComparisonTable 
                         externalResponses={msg.externalResponses} 
                         whiteMode={whiteMode}
                       />
