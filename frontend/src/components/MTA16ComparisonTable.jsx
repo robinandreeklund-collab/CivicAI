@@ -81,9 +81,10 @@ function parseScore(text, dimensionLabel, dimensionLabelEn) {
   const labels = [dimensionLabel, dimensionLabelEn].filter(Boolean);
   
   for (const label of labels) {
-    // Pattern 1: "Label: 85" or "Label: 85%" (PRIMARY FORMAT)
+    // Pattern 1: "Label: 85" or "Label: [85]" or "Label: 85%" (PRIMARY FORMAT)
     // ONESEEK now returns numeric scores directly (0-100)
-    const numericPattern = new RegExp(`${label}[:\\s]+([0-9]+)%?`, 'i');
+    // Also handles variations with brackets: [80]
+    const numericPattern = new RegExp(`${label}[:\\s]+\\[?([0-9]+)\\]?%?`, 'i');
     const numericMatch = text.match(numericPattern);
     if (numericMatch) {
       return parseInt(numericMatch[1], 10);
@@ -134,7 +135,7 @@ function ScoreBadge({ score }) {
   
   return (
     <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${colorClass} ${bgClass}`}>
-      {score}%
+      {score}
     </span>
   );
 }
