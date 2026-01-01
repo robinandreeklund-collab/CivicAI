@@ -569,14 +569,31 @@ async function handleZeroCompareFlow(req, res) {
       try {
         console.log(`  Analyzing ${extResponse.agent} with MTA-16...`);
         
+        // Truncate response if too long to stay within OpenSeek's 10K char limit
+        // The template + question + agent takes ~6000 chars, so we limit response to 4000
+        const MAX_RESPONSE_LENGTH = 4000;
+        let responseToAnalyze = extResponse.response;
+        let truncationNote = '';
+        
+        if (responseToAnalyze.length > MAX_RESPONSE_LENGTH) {
+          const keepStart = 3900; // Keep most of the beginning
+          const keepEnd = 100;    // Keep a bit of the end for context
+          responseToAnalyze = 
+            responseToAnalyze.substring(0, keepStart) + 
+            '\n\n[... response truncated for analysis ...]\n\n' +
+            responseToAnalyze.substring(responseToAnalyze.length - keepEnd);
+          truncationNote = ` (truncated from ${extResponse.response.length} to ${responseToAnalyze.length} chars)`;
+          console.log(`  ✂️  Response truncated from ${extResponse.response.length} to ${responseToAnalyze.length} chars`);
+        }
+        
         // Build MTA-16 analysis prompt for this specific response
         const mta16Prompt = buildMTA16AnalysisPrompt(
           question,
           extResponse.agent.toUpperCase(),
-          extResponse.response
+          responseToAnalyze
         );
         
-        console.log(`  📝 MTA-16 prompt length: ${mta16Prompt.length} chars`);
+        console.log(`  📝 MTA-16 prompt length: ${mta16Prompt.length} chars${truncationNote}`);
         console.log(`  📝 Prompt preview: ${mta16Prompt.substring(0, 150)}...`);
         
         // Call ONESEEK to perform MTA-16 analysis
