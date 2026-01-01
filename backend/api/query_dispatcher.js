@@ -31,7 +31,8 @@ import {
 import { createLedgerBlock } from '../services/ledgerService.js';
 import { getOpenSeekResponse } from '../services/openseek.js';
 import { 
-  buildComparePrompt, 
+  buildComparePrompt,
+  buildMTA16AnalysisPrompt,
   getCompareSystemPrompt,
   getChunkedIndividualPrompt,
   getChunkedSynthesisPrompt 
@@ -560,6 +561,55 @@ async function handleZeroCompareFlow(req, res) {
     
     console.log(`✅ Collected analysis data for ${externalResponses.length} external responses - ready for ONESEEK MTA-16`);
     
+    // Step 2.5: Perform MTA-16 analysis with separate ONESEEK calls
+    console.log('\n🔬 Step 2.5: Performing MTA-16 analysis with ONESEEK...');
+    const mta16Analyses = [];
+    
+    for (const extResponse of externalResponses) {
+      try {
+        console.log(`  Analyzing ${extResponse.agent} with MTA-16...`);
+        
+        // Build MTA-16 analysis prompt for this specific response
+        const mta16Prompt = buildMTA16AnalysisPrompt(
+          question,
+          extResponse.agent.toUpperCase(),
+          extResponse.response
+        );
+        
+        // Call ONESEEK to perform MTA-16 analysis
+        const mta16Result = await getOpenSeekResponse(mta16Prompt, {
+          profileId: 'zero',
+          systemPrompt: 'Du är Zero, ONESEEK\'s transparensanalysator. Utför MTA-16 analys exakt enligt instruktionerna.',
+          max_tokens: 1024, // Enough for detailed analysis
+          temperature: 0.3, // Lower temperature for more consistent analysis
+        });
+        
+        if (mta16Result.response) {
+          // Store MTA-16 analysis with the response
+          extResponse.mta16Analysis = mta16Result.response;
+          mta16Analyses.push({
+            agent: extResponse.agent,
+            analysis: mta16Result.response,
+          });
+          console.log(`  ✅ MTA-16 for ${extResponse.agent} complete`);
+        } else {
+          console.warn(`  ⚠️  MTA-16 failed for ${extResponse.agent}`);
+        }
+      } catch (error) {
+        console.error(`  ❌ MTA-16 error for ${extResponse.agent}:`, error.message);
+      }
+    }
+    
+    console.log(`✅ MTA-16 analysis complete for ${mta16Analyses.length}/${externalResponses.length} responses`);
+    
+    // Format MTA-16 analyses for the comparison prompt
+    let mta16AnalysesText = '';
+    if (mta16Analyses.length > 0) {
+      mta16AnalysesText = mta16Analyses.map(a => 
+        `**${a.agent.toUpperCase()}:**\n${a.analysis}\n`
+      ).join('\n---\n\n');
+    }
+    
     let openSeekResult;
     let compressionMetadata = null;
     let character = { id: characterCard, name: characterCard };
@@ -628,6 +678,7 @@ async function handleZeroCompareFlow(req, res) {
           null, // No character YAML in compare mode
           question,
           compressionResult.compressed,
+          mta16AnalysesText, // Add MTA-16 analyses
           null // Firebase context - skip for now
         );
       }
@@ -707,6 +758,8 @@ async function handleZeroCompareFlow(req, res) {
         agent: r.agent,
         response: r.response.substring(0, 500) + (r.response.length > 500 ? '...' : ''),
         model: r.model,
+        pipelineAnalysis: r.pipelineAnalysis, // Keep for backward compatibility
+        mta16Analysis: r.mta16Analysis, // Add ONESEEK's MTA-16 analysis
       })),
       compression: compressionMetadata,
       character: {

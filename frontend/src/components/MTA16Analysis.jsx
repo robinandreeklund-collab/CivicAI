@@ -143,11 +143,16 @@ function extractMTA16Metrics(pipelineAnalysis, response) {
 
 /**
  * MTA-16 Analysis Panel for a single response
+ * Now displays ONESEEK's MTA-16 analysis from separate call
  */
 function MTA16Panel({ response, expanded, onToggle }) {
+  // Check if we have ONESEEK's MTA-16 analysis
+  const hasMTA16 = response.mta16Analysis && response.mta16Analysis.trim();
+  
+  // Fallback to extracting metrics from pipeline analysis for visualization
   const metrics = extractMTA16Metrics(response.pipelineAnalysis, response);
   
-  if (!metrics) {
+  if (!hasMTA16 && !metrics) {
     return (
       <div className="p-4 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
         <div className="flex items-center gap-2 text-[#666] text-sm">
@@ -175,9 +180,9 @@ function MTA16Panel({ response, expanded, onToggle }) {
     { key: 'completenessScore', label: 'Fullständighet', icon: CheckCircle },
   ];
   
-  // Calculate overall score (average of key metrics)
+  // Calculate overall score (average of key metrics) - only if metrics available
   const keyMetrics = ['factualAccuracy', 'confidenceLevel', 'contextualRelevance', 'completenessScore'];
-  const overallScore = keyMetrics.reduce((sum, key) => sum + metrics[key], 0) / keyMetrics.length;
+  const overallScore = metrics ? keyMetrics.reduce((sum, key) => sum + metrics[key], 0) / keyMetrics.length : 0;
   
   return (
     <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg overflow-hidden">
@@ -190,26 +195,28 @@ function MTA16Panel({ response, expanded, onToggle }) {
           <Activity className="w-5 h-5 text-[#646cff]" />
           <div className="text-left">
             <div className="text-sm font-medium text-[#ddd]">
-              {response.agent.toUpperCase()} - MTA-16 Analys
+              {response.agent.toUpperCase()} - MTA-16 Analys (ONESEEK)
             </div>
             <div className="text-xs text-[#888] mt-0.5">
-              Övergripande poäng: {overallScore.toFixed(1)}% 
+              {hasMTA16 ? 'Analys från ONESEEK LLM' : 'Pipeline-data'}
               {response.metadata?.model && ` • ${response.metadata.model}`}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Mini sparklines for key metrics */}
-          <div className="flex gap-1">
-            {keyMetrics.map(key => (
-              <Sparkline 
-                key={key}
-                values={[0, metrics[key] / 2, metrics[key]]}
-                width={30}
-                height={16}
-              />
-            ))}
-          </div>
+          {/* Mini sparklines for key metrics - only if metrics available */}
+          {metrics && (
+            <div className="flex gap-1">
+              {keyMetrics.map(key => (
+                <Sparkline 
+                  key={key}
+                  values={[0, metrics[key] / 2, metrics[key]]}
+                  width={30}
+                  height={16}
+                />
+              ))}
+            </div>
+          )}
           {expanded ? (
             <ChevronUp className="w-5 h-5 text-[#666]" />
           ) : (
@@ -221,25 +228,40 @@ function MTA16Panel({ response, expanded, onToggle }) {
       {/* Expanded Content */}
       {expanded && (
         <div className="p-4 border-t border-[#1a1a1a] space-y-4">
-          {/* Overall Score Banner */}
-          <div className={`p-3 rounded-lg ${
-            overallScore >= 70 ? 'bg-green-900/20' : 
-            overallScore >= 50 ? 'bg-yellow-900/20' : 
-            'bg-red-900/20'
-          }`}>
-            <div className="text-xs text-[#888] mb-1">Sammanfattande bedömning</div>
-            <div className={`text-lg font-medium ${
-              overallScore >= 70 ? 'text-green-500' : 
-              overallScore >= 50 ? 'text-yellow-500' : 
-              'text-red-500'
-            }`}>
-              {overallScore.toFixed(1)}% kvalitetspoäng
+          {/* ONESEEK's MTA-16 Analysis Text */}
+          {hasMTA16 && (
+            <div className="bg-[#111] p-4 rounded-lg border border-[#1a1a1a]">
+              <div className="text-xs text-[#888] uppercase tracking-wider mb-2">
+                ONESEEK MTA-16 Analys
+              </div>
+              <div className="text-sm text-[#ccc] whitespace-pre-wrap leading-relaxed">
+                {response.mta16Analysis}
+              </div>
             </div>
-          </div>
+          )}
           
-          {/* Metrics Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {metricsList.map(({ key, label, icon: Icon }) => (
+          {/* Overall Score Banner - only if metrics available */}
+          {metrics && (
+            <div className={`p-3 rounded-lg ${
+              overallScore >= 70 ? 'bg-green-900/20' : 
+              overallScore >= 50 ? 'bg-yellow-900/20' : 
+              'bg-red-900/20'
+            }`}>
+              <div className="text-xs text-[#888] mb-1">Pipeline-data sammanfattning</div>
+              <div className={`text-lg font-medium ${
+                overallScore >= 70 ? 'text-green-500' : 
+                overallScore >= 50 ? 'text-yellow-500' : 
+                'text-red-500'
+              }`}>
+                {overallScore.toFixed(1)}% kvalitetspoäng
+              </div>
+            </div>
+          )}
+          
+          {/* Metrics Grid - only if metrics available */}
+          {metrics && (
+            <div className="grid grid-cols-2 gap-3">
+              {metricsList.map(({ key, label, icon: Icon }) => (
               <div key={key} className="flex items-center justify-between p-2 bg-[#111] rounded">
                 <div className="flex items-center gap-2">
                   <Icon className="w-4 h-4 text-[#666]" />

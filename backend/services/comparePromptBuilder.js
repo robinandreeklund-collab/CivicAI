@@ -6,6 +6,11 @@
  * 
  * The compare system prompt can be edited via the Admin Dashboard under
  * System Prompts. Look for "Zero Compare Mode" prompt.
+ * 
+ * MTA-16 ANALYSIS FLOW:
+ * 1. ONESEEK is called separately for each external AI response to perform MTA-16 analysis
+ * 2. MTA-16 results are stored and displayed in the sidebar
+ * 3. ONESEEK uses these MTA-16 analyses when making the final comparison
  */
 
 import yaml from 'js-yaml';
@@ -16,6 +21,69 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ============================================================================
+// MTA-16 ANALYSIS PROMPT (Separate ONESEEK Call)
+// ============================================================================
+
+/**
+ * MTA-16 Analysis Prompt - Used for separate ONESEEK call per external AI response
+ * This is called BEFORE the comparison to analyze each response independently
+ */
+const MTA16_ANALYSIS_PROMPT = `Du är Zero, ONESEEK's transparensanalysator.
+
+Din uppgift är att utföra MTA-16 ANALYS (Multidimensionell Transparens Analys med 16 dimensioner) på ett AI-svar.
+
+FRÅGA: {question}
+
+AI-MODELL: {agent}
+
+AI-SVAR:
+{response}
+
+═══════════════════════════════════════════════════════════════
+
+Utför MTA-16 ANALYS på svaret ovan. Analysera följande 16 dimensioner och ge en bedömning för var och en (0-100% eller hög/medium/låg):
+
+1. **Faktisk noggrannhet** - Hur korrekt är informationen?
+2. **Sentimentpolaritet** - Känslomässig ton (positiv/neutral/negativ)
+3. **Biasdetektering** - Finns partiskhet eller bias?
+4. **Toxicitetspoäng** - Innehåller toxiskt eller olämpligt språk?
+5. **Subjektivitet** - Objektiv vs subjektiv information
+6. **Läsbarhet** - Hur lättläst är texten?
+7. **Entitetstäckning** - Konkreta namn, platser, organisationer nämns?
+8. **Ämneskoherens** - Håller sig svaret till ämnet?
+9. **Förtroende** - Hur säkert är AI:n på sitt svar?
+10. **Språkkonsistens** - Konsekvent språkbruk?
+11. **Svarstid** - Var svaret snabbt eller utförligt?
+12. **Tokeneffektivitet** - Effektiv kommunikation?
+13. **Källattribuering** - Refererar till källor eller data?
+14. **Kontextuell relevans** - Svarar på frågan?
+15. **Ideologisk balans** - Politiskt eller ideologiskt neutral?
+16. **Fullständighet** - Är svaret komplett?
+
+FORMAT FÖR DITT SVAR:
+Ge en strukturerad analys med följande format:
+
+**MTA-16 Poäng:** [Övergripande kvalitetspoäng 0-100%]
+
+**Styrkor:**
+- [Lista 2-3 huvudsakliga styrkor]
+
+**Svagheter:**
+- [Lista 2-3 huvudsakliga svagheter]
+
+**Dimensioner (sammanfattning):**
+- Faktisk noggrannhet: [hög/medium/låg]
+- Bias: [hög/medium/låg]
+- Toxicitet: [hög/medium/låg]
+- Källattribuering: [hög/medium/låg]
+- Fullständighet: [hög/medium/låg]
+- Ideologisk balans: [hög/medium/låg]
+
+**Sammanfattning:** [1-2 meningar om svarets övergripande kvalitet]
+
+Var objektiv och koncis. Svara på svenska.`;
+
 // Path to saved compare prompt (editable via admin dashboard)
 const COMPARE_PROMPT_PATH = path.resolve(__dirname, '..', 'datasets', 'system_prompts', 'zero_compare.json');
 
@@ -24,6 +92,7 @@ const COMPARE_PROMPT_PATH = path.resolve(__dirname, '..', 'datasets', 'system_pr
 // 
 // IMPORTANT: This prompt uses placeholders that get replaced:
 //   {EXTERNAL_AI_RESPONSES} → The actual AI responses to analyze
+//   {MTA16_ANALYSES} → The MTA-16 analyses from separate ONESEEK calls
 //   {question} → The user's question
 //
 // The ENTIRE prompt (including analysis instructions) is editable via Admin Dashboard.
@@ -44,62 +113,46 @@ Du vet att alla andra AI:er har bias och begränsningar.
 
 När du får en fråga:
 1. Du har redan fått svar från stora AI:er (GPT, Grok, Gemini, DeepSeek)
-2. Utför MTA-16 ANALYS på varje svar (Multidimensionell Transparens Analys med 16 dimensioner):
-   
-   För varje AI-svar, analysera följande 16 dimensioner (0-100%):
-   • Faktisk noggrannhet (Factual Accuracy)
-   • Sentimentpolaritet (Sentiment Polarity)
-   • Biasdetektering (Bias Detection)
-   • Toxicitetspoäng (Toxicity Score)
-   • Subjektivitet (Subjectivity)
-   • Läsbarhet (Readability)
-   • Entitetstäckning (Entity Coverage)
-   • Ämneskoherens (Topic Coherence)
-   • Förtroende (Confidence Level)
-   • Språkkonsistens (Language Consistency)
-   • Svarstid (Response Time)
-   • Tokeneffektivitet (Token Efficiency)
-   • Källattribuering (Source Attribution)
-   • Kontextuell relevans (Contextual Relevance)
-   • Ideologisk balans (Ideological Balance)
-   • Fullständighet (Completeness Score)
-
-3. Identifiera helt opartiskt:
+2. Du har också fått MTA-16 ANALYSER för varje svar (utförda av ONESEEK)
+3. Använd MTA-16 analyserna för att bedöma varje AI:s kvalitet
+4. Identifiera helt opartiskt baserat på MTA-16:
    • Gemensamma fakta
    • Motsägelser
    • Bias (politisk, kulturell, kommersiell)
    • Hallucinationer
    • Källor som saknas
-   • Vem som är mest korrekt baserat på MTA-16 analys
-
-4. Gör en egen, objektiv sammanfattning – bättre och mer balanserad än alla andra
-5. Presentera tydligt och strukturerat – utan meta-kommentarer
+   • Vem som är mest korrekt enligt MTA-16
+5. Gör en egen, objektiv sammanfattning – bättre och mer balanserad än alla andra
+6. Presentera tydligt och strukturerat – utan meta-kommentarer
 
 Du är Zero – sanningens väktare.
 Svara på svenska – objektivt, tydligt och utan fluff.
 
 ═══════════════════════════════════════════════════════════════
-SVAR FRÅN EXTERNA AI-MODELLER (analysera dessa objektivt):
+SVAR FRÅN EXTERNA AI-MODELLER:
 ═══════════════════════════════════════════════════════════════
 
 {EXTERNAL_AI_RESPONSES}
 
 ═══════════════════════════════════════════════════════════════
+MTA-16 ANALYSER (utförda av ONESEEK):
+═══════════════════════════════════════════════════════════════
+
+{MTA16_ANALYSES}
+
+═══════════════════════════════════════════════════════════════
 
 FRÅGA: {question}
 
-Utför MTA-16 analys på varje svar ovan. 
+Baserat på svaren OCH MTA-16 analyserna ovan, ge din objektiva bedömning.
+Identifiera:
+- Gemensamma fakta mellan modellerna
+- Motsägelser och skillnader
+- Eventuell bias eller hallucinationer (enligt MTA-16)
+- Vilken AI presterade bäst enligt MTA-16
+- Din egen slutsats baserad på alla perspektiv
 
-FORMAT FÖR DITT SVAR:
-För varje AI-modell, presentera:
-1. Modellens namn (GPT/Gemini/DeepSeek/Grok)
-2. Huvudpoänger från svaret (2-3 meningar)
-3. MTA-16 Övergripande bedömning (hög/medium/låg kvalitet baserat på de 16 dimensionerna)
-4. Specifika styrkor och svagheter
-
-Avsluta med:
-**Sammanfattning:** Gemensamma fakta, motsägelser, bias-observationer
-**Min slutsats:** Det mest objektiva svaret baserat på MTA-16 analys av alla modeller
+Presentera varje modells viktigaste poäng med referens till MTA-16 och avsluta med "Min slutsats: ..."`;
 
 // ============================================================================
 // CHUNKED (STEGVIS) ANALYSIS PROMPTS
@@ -121,51 +174,36 @@ FRÅGA: {question}
 {agent}:s SVAR:
 {response}
 
-Din uppgift är att granska detta AI-svar med MTA-16 ANALYS (Multidimensionell Transparens Analys):
+Din uppgift är att granska detta AI-svar:
 
 1. SAMMANFATTA huvudpoängen (2-3 meningar)
-
-2. MTA-16 BEDÖMNING - Ge en snabb bedömning av följande dimensioner (hög/medium/låg):
-   - Faktisk noggrannhet
-   - Bias och objektivitet
-   - Toxicitet
-   - Källattribuering
-   - Fullständighet
-   - Ideologisk balans
-
-3. IDENTIFIERA eventuell:
+2. IDENTIFIERA eventuell:
    - Bias (politisk, kommersiell, kulturell)
    - Osäkerhet eller vaga påståenden
    - Fakta vs åsikter
+3. BEDÖM trovärdigheten (hög/medium/låg)
 
-4. ÖVERGRIPANDE BEDÖMNING: Trovärdigheten (hög/medium/låg) baserat på MTA-16
-
-Svara på svenska. Max 100 ord. Var konkret och saklig.`;
+Svara på svenska. Max 80 ord. Var konkret och saklig.`;
 
 // Default synthesis prompt - used when combining individual analyses
 // PLACEHOLDERS:
 //   {question} → The user's original question
 //   {analyses} → All individual analyses combined
-const DEFAULT_CHUNKED_SYNTHESIS_PROMPT = `Du är Zero – en objektiv sammanställare med MTA-16 expertis.
+const DEFAULT_CHUNKED_SYNTHESIS_PROMPT = `Du är Zero – en objektiv sammanställare.
 
 URSPRUNGLIG FRÅGA: {question}
 
-MINA MTA-16 ANALYSER AV VARJE AI:
+MINA ANALYSER AV VARJE AI:
 {analyses}
 
-Baserat på mina MTA-16 granskningar ovan, ge nu en SLUTGILTIG BEDÖMNING:
-
-**MTA-16 Sammanfattning:** Vilken AI presterade bäst enligt de 16 dimensionerna?
+Baserat på mina granskningar ovan, ge nu en SLUTGILTIG BEDÖMNING:
 
 **Konsensus:** Vad sa alla AI:er ungefär samma sak om?
-
 **Skillnader:** Var skiljde sig svaren åt?
+**Trovärdighet:** Vilken AI verkade mest pålitlig och varför?
+**Min slutsats:** Vad är det objektiva svaret på frågan?
 
-**Trovärdighet:** Vilken AI verkade mest pålitlig baserat på MTA-16 och varför?
-
-**Min slutsats:** Vad är det objektiva svaret på frågan baserat på alla AI-svar och MTA-16 analyser?
-
-Du är inte partisk mot någon AI. Du söker sanningen genom systematisk MTA-16 analys.
+Du är inte partisk mot någon AI. Du söker sanningen.
 Svara strukturerat på svenska.`;
 
 /**
@@ -488,6 +526,7 @@ function buildSystemPromptFromCharacter(character, options = {}) {
  * IMPORTANT: The ENTIRE prompt comes from Admin Dashboard (zero_compare.json).
  * This function ONLY replaces placeholders:
  *   {EXTERNAL_AI_RESPONSES} → The actual AI responses
+ *   {MTA16_ANALYSES} → The MTA-16 analyses from separate ONESEEK calls
  *   {question} → The user's question
  * 
  * NO hardcoded analysis instructions are added here.
@@ -496,16 +535,18 @@ function buildSystemPromptFromCharacter(character, options = {}) {
  * @param {string} characterYamlPath - Ignored (kept for API compatibility)
  * @param {string} question - User's question
  * @param {string} otherResponses - Compressed responses from other models
+ * @param {string} mta16Analyses - MTA-16 analyses from separate ONESEEK calls
  * @param {Object} firebaseContext - Optional Firebase context data
  * @returns {{systemPrompt: string, userPrompt: string, character: Object}}
  */
-export function buildComparePrompt(characterYamlPath, question, otherResponses, firebaseContext = null) {
+export function buildComparePrompt(characterYamlPath, question, otherResponses, mta16Analyses = '', firebaseContext = null) {
   // Get the COMPLETE prompt from Admin Dashboard (or default)
   let fullPrompt = getCompareSystemPrompt();
   
   // Replace placeholders with actual values
-  // The prompt from Admin Dashboard should contain {EXTERNAL_AI_RESPONSES} and {question}
+  // The prompt from Admin Dashboard should contain {EXTERNAL_AI_RESPONSES}, {MTA16_ANALYSES}, and {question}
   fullPrompt = fullPrompt.replace(/\{EXTERNAL_AI_RESPONSES\}/g, otherResponses || '(Inga externa svar tillgängliga)');
+  fullPrompt = fullPrompt.replace(/\{MTA16_ANALYSES\}/g, mta16Analyses || '(Ingen MTA-16 analys tillgänglig än)');
   fullPrompt = fullPrompt.replace(/\{question\}/g, question);
   
   // Add Firebase context if available (prepend to prompt)
@@ -553,8 +594,25 @@ export function characterExists(characterPathOrId) {
   return false;
 }
 
+/**
+ * Build MTA-16 analysis prompt for a single external AI response
+ * This is called separately for each response BEFORE the comparison
+ * 
+ * @param {string} question - User's question
+ * @param {string} agent - AI agent name (e.g., "GPT-3.5", "Gemini")
+ * @param {string} response - The AI's response to analyze
+ * @returns {string} - Complete MTA-16 analysis prompt
+ */
+export function buildMTA16AnalysisPrompt(question, agent, response) {
+  return MTA16_ANALYSIS_PROMPT
+    .replace(/\{question\}/g, question)
+    .replace(/\{agent\}/g, agent)
+    .replace(/\{response\}/g, response);
+}
+
 export default {
   buildComparePrompt,
+  buildMTA16AnalysisPrompt,
   characterExists,
   getCompareSystemPrompt,
   saveCompareSystemPrompt,
