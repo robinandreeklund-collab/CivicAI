@@ -209,7 +209,7 @@ Existing shortcuts still work:
 5. **Observe Tankekedja events**:
    - Should show "Samlar in externa AI-svar..."
    - Should show "Mottog X externa svar"
-   - Should show "MTA-16 analys tillgänglig för X svar"
+   - Should show "ONESEEK MTA-16 analys tillgänglig för X svar"
    - Should show "Zero analyserar externa svar..."
    - Should show "Analys klar"
 6. **Check External Responses Panel**:
