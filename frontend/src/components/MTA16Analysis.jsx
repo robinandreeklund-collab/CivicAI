@@ -1,10 +1,12 @@
 /**
  * MTA-16 Analysis Component
  * 
- * Displays comprehensive longitudinal MTA-16 analysis tables with per-answer analysis
- * and sparkline visualization for external AI responses in compare mode.
+ * Displays ONESEEK's comprehensive MTA-16 (Multi-Dimensional Transparency Analysis)
+ * with per-answer analysis and sparkline visualization for external AI responses in compare mode.
  * 
- * MTA-16 stands for Multi-Dimensional Transparency Analysis with 16 key metrics:
+ * ONESEEK LLM performs this MTA-16 analysis framework to provide transparency into
+ * AI response quality across 16 key dimensions:
+ * 
  * 1. Factual Accuracy
  * 2. Sentiment Polarity
  * 3. Bias Detection
@@ -85,7 +87,8 @@ function MetricBadge({ label, value, max = 100, format = 'percentage' }) {
 }
 
 /**
- * Extract MTA-16 metrics from pipeline analysis
+ * Extract MTA-16 metrics from ONESEEK analysis data
+ * ONESEEK's transparency framework organizes the analysis into 16 dimensions
  */
 function extractMTA16Metrics(pipelineAnalysis, response) {
   if (!pipelineAnalysis) {

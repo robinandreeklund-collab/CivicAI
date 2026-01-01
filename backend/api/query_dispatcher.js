@@ -453,7 +453,10 @@ function buildFallbackResponse(question, analyses) {
 
 /**
  * Handle Zero Compare Flow
- * Collects external responses, compresses them, and calls OpenSeek with context
+ * 
+ * Collects external responses, gathers analysis data, and calls ONESEEK (Zero) 
+ * which performs MTA-16 analysis (comprehensive multidimensional transparency analysis 
+ * with 16 dimensions, per-round tracking, and sparkline visualizations).
  * 
  * Supports two modes:
  * - chunked: true → Analyze each response individually (slower but more reliable)
@@ -506,56 +509,56 @@ async function handleZeroCompareFlow(req, res) {
       getGrokResponse(question),
     ]);
     
-    // Normalize external responses with pipeline analysis
-    console.log('\n🔬 Step 2: Running MTA-16 analysis on external responses...');
+    // Normalize external responses with analysis data for ONESEEK MTA-16 framework
+    console.log('\n🔬 Step 2: Gathering analysis data for ONESEEK MTA-16 framework...');
     const externalResponses = [];
     
     if (gptResponse.status === 'fulfilled' && gptResponse.value.response) {
       const responseText = gptResponse.value.response;
-      console.log('  Analyzing GPT response...');
+      console.log('  Gathering data for GPT response...');
       const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
       externalResponses.push({
         agent: 'gpt-3.5',
         response: responseText,
         model: gptResponse.value.model,
-        pipelineAnalysis: pipelineAnalysis,
+        pipelineAnalysis: pipelineAnalysis, // Data for ONESEEK MTA-16 framework
       });
     }
     if (geminiResponse.status === 'fulfilled' && geminiResponse.value.response) {
       const responseText = geminiResponse.value.response;
-      console.log('  Analyzing Gemini response...');
+      console.log('  Gathering data for Gemini response...');
       const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
       externalResponses.push({
         agent: 'gemini',
         response: responseText,
         model: geminiResponse.value.model,
-        pipelineAnalysis: pipelineAnalysis,
+        pipelineAnalysis: pipelineAnalysis, // Data for ONESEEK MTA-16 framework
       });
     }
     if (deepseekResponse.status === 'fulfilled' && deepseekResponse.value.response) {
       const responseText = deepseekResponse.value.response;
-      console.log('  Analyzing DeepSeek response...');
+      console.log('  Gathering data for DeepSeek response...');
       const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
       externalResponses.push({
         agent: 'deepseek',
         response: responseText,
         model: deepseekResponse.value.model,
-        pipelineAnalysis: pipelineAnalysis,
+        pipelineAnalysis: pipelineAnalysis, // Data for ONESEEK MTA-16 framework
       });
     }
     if (grokResponse.status === 'fulfilled' && grokResponse.value.response) {
       const responseText = grokResponse.value.response;
-      console.log('  Analyzing Grok response...');
+      console.log('  Gathering data for Grok response...');
       const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
       externalResponses.push({
         agent: 'grok',
         response: responseText,
         model: grokResponse.value.model,
-        pipelineAnalysis: pipelineAnalysis,
+        pipelineAnalysis: pipelineAnalysis, // Data for ONESEEK MTA-16 framework
       });
     }
     
-    console.log(`✅ Collected and analyzed ${externalResponses.length} external responses`);
+    console.log(`✅ Collected analysis data for ${externalResponses.length} external responses - ready for ONESEEK MTA-16`);
     
     let openSeekResult;
     let compressionMetadata = null;

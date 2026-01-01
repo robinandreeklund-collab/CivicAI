@@ -4050,7 +4050,7 @@ export default function SevenBZeroPage() {
                       <span className={`text-[9px] uppercase tracking-wider ${
                         whiteMode ? 'text-[#999]' : 'text-[#666]'
                       }`}>
-                        ✓ Pipeline-analys tillgänglig
+                        ✓ ONESEEK MTA-16 tillgänglig
                       </span>
                     </div>
                   )}
