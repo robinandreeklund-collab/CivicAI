@@ -88,14 +88,18 @@ SVAR FRÅN EXTERNA AI-MODELLER (analysera dessa objektivt):
 
 FRÅGA: {question}
 
-Utför MTA-16 analys på varje svar ovan. Ge en övergripande bedömning av varje modell baserat på de 16 dimensionerna.
-Identifiera:
-- Gemensamma fakta mellan modellerna
-- Motsägelser och skillnader
-- Eventuell bias eller hallucinationer baserat på din MTA-16 analys
-- Din egen slutsats baserad på alla perspektiv
+Utför MTA-16 analys på varje svar ovan. 
 
-Presentera varje modells viktigaste poäng med MTA-16 bedömning och avsluta med "Min slutsats: ..."`;
+FORMAT FÖR DITT SVAR:
+För varje AI-modell, presentera:
+1. Modellens namn (GPT/Gemini/DeepSeek/Grok)
+2. Huvudpoänger från svaret (2-3 meningar)
+3. MTA-16 Övergripande bedömning (hög/medium/låg kvalitet baserat på de 16 dimensionerna)
+4. Specifika styrkor och svagheter
+
+Avsluta med:
+**Sammanfattning:** Gemensamma fakta, motsägelser, bias-observationer
+**Min slutsats:** Det mest objektiva svaret baserat på MTA-16 analys av alla modeller
 
 // ============================================================================
 // CHUNKED (STEGVIS) ANALYSIS PROMPTS
