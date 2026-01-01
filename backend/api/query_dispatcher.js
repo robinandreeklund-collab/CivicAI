@@ -572,16 +572,18 @@ async function handleZeroCompareFlow(req, res) {
         // Truncate response if too long to stay within OpenSeek's 10K char limit
         // The template + question + agent takes ~6000 chars, so we limit response to 4000
         const MAX_RESPONSE_LENGTH = 4000;
+        const TRUNCATION_MARKER = '\n\n[... response truncated for analysis ...]\n\n';
+        const KEEP_END_CHARS = 100; // Keep end for conclusions/context
+        const KEEP_START_CHARS = MAX_RESPONSE_LENGTH - TRUNCATION_MARKER.length - KEEP_END_CHARS;
+        
         let responseToAnalyze = extResponse.response;
         let truncationNote = '';
         
         if (responseToAnalyze.length > MAX_RESPONSE_LENGTH) {
-          const keepStart = 3900; // Keep most of the beginning
-          const keepEnd = 100;    // Keep a bit of the end for context
           responseToAnalyze = 
-            responseToAnalyze.substring(0, keepStart) + 
-            '\n\n[... response truncated for analysis ...]\n\n' +
-            responseToAnalyze.substring(responseToAnalyze.length - keepEnd);
+            responseToAnalyze.substring(0, KEEP_START_CHARS) + 
+            TRUNCATION_MARKER +
+            responseToAnalyze.substring(responseToAnalyze.length - KEEP_END_CHARS);
           truncationNote = ` (truncated from ${extResponse.response.length} to ${responseToAnalyze.length} chars)`;
           console.log(`  ✂️  Response truncated from ${extResponse.response.length} to ${responseToAnalyze.length} chars`);
         }
