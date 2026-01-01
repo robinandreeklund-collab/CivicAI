@@ -324,6 +324,16 @@ export default function MTA16Analysis({ externalResponses, whiteMode = false }) 
     return null;
   }
   
+  // Debug logging
+  console.log('[MTA16Analysis] Received responses:', externalResponses.length);
+  externalResponses.forEach((r, i) => {
+    console.log(`[MTA16Analysis] Response ${i} (${r.agent}):`, {
+      hasMTA16: !!r.mta16Analysis,
+      mta16Length: r.mta16Analysis?.length || 0,
+      hasPipeline: !!r.pipelineAnalysis
+    });
+  });
+  
   const togglePanel = (index) => {
     setExpandedPanels(prev => {
       const next = new Set(prev);

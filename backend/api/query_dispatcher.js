@@ -759,7 +759,7 @@ async function handleZeroCompareFlow(req, res) {
         response: r.response.substring(0, 500) + (r.response.length > 500 ? '...' : ''),
         model: r.model,
         pipelineAnalysis: r.pipelineAnalysis, // Keep for backward compatibility
-        mta16Analysis: r.mta16Analysis, // Add ONESEEK's MTA-16 analysis
+        mta16Analysis: r.mta16Analysis, // Add ONESEEK's MTA-16 analysis (full text, not truncated)
       })),
       compression: compressionMetadata,
       character: {
@@ -772,6 +772,13 @@ async function handleZeroCompareFlow(req, res) {
       processingTimeMs: totalTime,
       analysisMode: chunked ? 'chunked' : 'standard',
     };
+    
+    // Debug logging for MTA-16
+    console.log('\n📊 Response Summary:');
+    console.log(`   External responses: ${externalResponses.length}`);
+    externalResponses.forEach(r => {
+      console.log(`   - ${r.agent}: MTA-16 ${r.mta16Analysis ? '✓' : '✗'} (${r.mta16Analysis?.length || 0} chars)`);
+    });
     
     // Include individual analyses if chunked mode was used
     if (chunked && openSeekResult.analyses) {

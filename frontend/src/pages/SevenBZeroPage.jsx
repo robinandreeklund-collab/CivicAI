@@ -1481,18 +1481,18 @@ export default function SevenBZeroPage() {
         // Track external responses collection
         addThinkingEvent('external_collected', `Mottog ${data.externalResponses?.length || 0} externa svar`);
         
-        // Store external responses for display (with pipeline analysis)
+        // Store external responses for display (with MTA-16 analysis)
         if (data.externalResponses) {
           setExternalResponses(data.externalResponses);
           
           // Log MTA-16 analysis availability
-          const withAnalysis = data.externalResponses.filter(r => r.pipelineAnalysis).length;
-          console.log(`[7B-Zero Compare] ${withAnalysis}/${data.externalResponses.length} responses have pipeline analysis`);
+          const withMTA16 = data.externalResponses.filter(r => r.mta16Analysis).length;
+          console.log(`[7B-Zero Compare] ${withMTA16}/${data.externalResponses.length} responses have ONESEEK MTA-16 analysis`);
           
-          if (withAnalysis > 0) {
-            addThinkingEvent('mta16_available', `MTA-16 analys tillgänglig för ${withAnalysis} av ${data.externalResponses.length} svar`);
+          if (withMTA16 > 0) {
+            addThinkingEvent('mta16_available', `MTA-16 analys tillgänglig för ${withMTA16} av ${data.externalResponses.length} svar`);
           } else {
-            addThinkingEvent('mta16_unavailable', 'MTA-16 analys kunde inte genereras (pipeline-data saknas)');
+            addThinkingEvent('mta16_unavailable', 'MTA-16 analys kunde inte genereras (ONESEEK-analys saknas)');
           }
         }
         
