@@ -71,7 +71,8 @@ const MTA16_CATEGORIES = {
 
 /**
  * Parse MTA-16 score from text analysis
- * Handles both numeric (85%) and text (hög/medium/låg) formats
+ * Primary format: numeric scores (0-100)
+ * Fallback: text scores (hög/medium/låg) converted to numeric
  */
 function parseScore(text, dimensionLabel, dimensionLabelEn) {
   if (!text) return null;
@@ -80,32 +81,24 @@ function parseScore(text, dimensionLabel, dimensionLabelEn) {
   const labels = [dimensionLabel, dimensionLabelEn].filter(Boolean);
   
   for (const label of labels) {
-    // Pattern 1: "Label: 85%" or "Label: 85"
+    // Pattern 1: "Label: 85" or "Label: 85%" (PRIMARY FORMAT)
+    // ONESEEK now returns numeric scores directly (0-100)
     const numericPattern = new RegExp(`${label}[:\\s]+([0-9]+)%?`, 'i');
     const numericMatch = text.match(numericPattern);
     if (numericMatch) {
       return parseInt(numericMatch[1], 10);
     }
     
-    // Pattern 2: "Label: hög/medium/låg" or "Label: high/medium/low"
+    // Pattern 2: "Label: hög/medium/låg" (FALLBACK for older analyses)
+    // Convert text to numeric score for backward compatibility
     const textPattern = new RegExp(`${label}[:\\s]+(hög|medium|låg|high|low)`, 'i');
     const textMatch = text.match(textPattern);
     if (textMatch) {
       const value = textMatch[1].toLowerCase();
-      // Convert text to numeric score
       if (value === 'hög' || value === 'high') return 85;
       if (value === 'medium') return 60;
       if (value === 'låg' || value === 'low') return 35;
     }
-  }
-  
-  // Pattern 3: Look for overall MTA-16 score at the beginning
-  const overallPattern = /MTA-16 Poäng[:\s]+([0-9]+)%?/i;
-  const overallMatch = text.match(overallPattern);
-  if (overallMatch) {
-    // If we found the overall score but not the specific dimension,
-    // we could use this as a fallback, but return null to show N/A
-    // since we don't want to show the same score for all dimensions
   }
   
   return null;

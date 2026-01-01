@@ -42,29 +42,29 @@ AI-SVAR:
 
 ═══════════════════════════════════════════════════════════════
 
-Utför MTA-16 ANALYS på svaret ovan. Analysera följande 16 dimensioner och ge en bedömning för var och en (0-100% eller hög/medium/låg):
+Utför MTA-16 ANALYS på svaret ovan. Analysera följande 16 dimensioner och ge ett NUMERISKT POÄNG (0-100) för var och en:
 
-1. **Faktisk noggrannhet** - Hur korrekt är informationen?
-2. **Sentimentpolaritet** - Känslomässig ton (positiv/neutral/negativ)
-3. **Biasdetektering** - Finns partiskhet eller bias?
-4. **Toxicitetspoäng** - Innehåller toxiskt eller olämpligt språk?
-5. **Subjektivitet** - Objektiv vs subjektiv information
-6. **Läsbarhet** - Hur lättläst är texten?
-7. **Entitetstäckning** - Konkreta namn, platser, organisationer nämns?
-8. **Ämneskoherens** - Håller sig svaret till ämnet?
-9. **Förtroende** - Hur säkert är AI:n på sitt svar?
-10. **Språkkonsistens** - Konsekvent språkbruk?
-11. **Svarstid** - Var svaret snabbt eller utförligt?
-12. **Tokeneffektivitet** - Effektiv kommunikation?
-13. **Källattribuering** - Refererar till källor eller data?
-14. **Kontextuell relevans** - Svarar på frågan?
-15. **Ideologisk balans** - Politiskt eller ideologiskt neutral?
-16. **Fullständighet** - Är svaret komplett?
+1. **Faktisk noggrannhet** (Factual Accuracy) - Hur korrekt är informationen?
+2. **Sentimentpolaritet** (Sentiment Polarity) - Känslomässig balans (50=neutral, högre=mer positiv)
+3. **Biasdetektering** (Bias Detection) - Frånvaro av bias (100=helt opartisk, 0=starkt partisk)
+4. **Toxicitetspoäng** (Toxicity Score) - Frånvaro av toxicitet (100=helt ren, 0=mycket toxisk)
+5. **Subjektivitet** (Subjectivity) - Objektivitet (100=helt objektiv, 0=helt subjektiv)
+6. **Läsbarhet** (Readability) - Hur lättläst är texten?
+7. **Entitetstäckning** (Entity Coverage) - Konkreta namn, platser, organisationer nämns?
+8. **Ämneskoherens** (Topic Coherence) - Håller sig svaret till ämnet?
+9. **Förtroende** (Confidence Level) - Hur säkert är AI:n på sitt svar?
+10. **Språkkonsistens** (Language Consistency) - Konsekvent språkbruk?
+11. **Svarstid** (Response Time) - Var svaret snabbt eller utförligt? (uppskatta baserat på längd)
+12. **Tokeneffektivitet** (Token Efficiency) - Effektiv kommunikation?
+13. **Källattribuering** (Source Attribution) - Refererar till källor eller data?
+14. **Kontextuell relevans** (Contextual Relevance) - Svarar på frågan?
+15. **Ideologisk balans** (Ideological Balance) - Politiskt eller ideologiskt neutral?
+16. **Fullständighet** (Completeness Score) - Är svaret komplett?
 
 FORMAT FÖR DITT SVAR:
-Ge en strukturerad analys med följande format:
+Ge en strukturerad analys med följande format. VIKTIGT: Alla dimensioner ska ha NUMERISKA POÄNG (0-100):
 
-**MTA-16 Poäng:** [Övergripande kvalitetspoäng 0-100%]
+**MTA-16 Poäng:** [Övergripande kvalitetspoäng 0-100]
 
 **Styrkor:**
 - [Lista 2-3 huvudsakliga styrkor]
@@ -72,17 +72,27 @@ Ge en strukturerad analys med följande format:
 **Svagheter:**
 - [Lista 2-3 huvudsakliga svagheter]
 
-**Dimensioner (sammanfattning):**
-- Faktisk noggrannhet: [hög/medium/låg]
-- Bias: [hög/medium/låg]
-- Toxicitet: [hög/medium/låg]
-- Källattribuering: [hög/medium/låg]
-- Fullständighet: [hög/medium/låg]
-- Ideologisk balans: [hög/medium/låg]
+**Dimensioner:**
+- Faktisk noggrannhet: [0-100]
+- Sentimentpolaritet: [0-100]
+- Biasdetektering: [0-100]
+- Toxicitetspoäng: [0-100]
+- Subjektivitet: [0-100]
+- Läsbarhet: [0-100]
+- Entitetstäckning: [0-100]
+- Ämneskoherens: [0-100]
+- Förtroende: [0-100]
+- Språkkonsistens: [0-100]
+- Svarstid: [0-100]
+- Tokeneffektivitet: [0-100]
+- Källattribuering: [0-100]
+- Kontextuell relevans: [0-100]
+- Ideologisk balans: [0-100]
+- Fullständighet: [0-100]
 
 **Sammanfattning:** [1-2 meningar om svarets övergripande kvalitet]
 
-Var objektiv och koncis. Svara på svenska.`;
+Var objektiv och koncis. Svara på svenska. GE ENDAST NUMERISKA POÄNG (0-100), INTE TEXT SOM "hög/medium/låg".`;
 
 // Path to saved compare prompt (editable via admin dashboard)
 const COMPARE_PROMPT_PATH = path.resolve(__dirname, '..', 'datasets', 'system_prompts', 'zero_compare.json');
