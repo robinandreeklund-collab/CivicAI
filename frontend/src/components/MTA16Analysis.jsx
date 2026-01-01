@@ -204,19 +204,6 @@ function MTA16Panel({ response, expanded, onToggle }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Mini sparklines for key metrics - only if metrics available */}
-          {metrics && (
-            <div className="flex gap-1">
-              {keyMetrics.map(key => (
-                <Sparkline 
-                  key={key}
-                  values={[0, metrics[key] / 2, metrics[key]]}
-                  width={30}
-                  height={16}
-                />
-              ))}
-            </div>
-          )}
           {expanded ? (
             <ChevronUp className="w-5 h-5 text-[#666]" />
           ) : (
@@ -237,74 +224,6 @@ function MTA16Panel({ response, expanded, onToggle }) {
               <div className="text-sm text-[#ccc] whitespace-pre-wrap leading-relaxed">
                 {response.mta16Analysis}
               </div>
-            </div>
-          )}
-          
-          {/* Overall Score Banner - only if metrics available */}
-          {metrics && (
-            <div className={`p-3 rounded-lg ${
-              overallScore >= 70 ? 'bg-green-900/20' : 
-              overallScore >= 50 ? 'bg-yellow-900/20' : 
-              'bg-red-900/20'
-            }`}>
-              <div className="text-xs text-[#888] mb-1">Pipeline-data sammanfattning</div>
-              <div className={`text-lg font-medium ${
-                overallScore >= 70 ? 'text-green-500' : 
-                overallScore >= 50 ? 'text-yellow-500' : 
-                'text-red-500'
-              }`}>
-                {overallScore.toFixed(1)}% kvalitetspoäng
-              </div>
-            </div>
-          )}
-          
-          {/* Metrics Grid - only if metrics available */}
-          {metrics && (
-            <div className="grid grid-cols-2 gap-3">
-              {metricsList.map(({ key, label, icon: Icon }) => (
-              <div key={key} className="flex items-center justify-between p-2 bg-[#111] rounded">
-                <div className="flex items-center gap-2">
-                  <Icon className="w-4 h-4 text-[#666]" />
-                  <span className="text-xs text-[#888]">{label}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Sparkline 
-                    values={[0, metrics[key] / 2, metrics[key]]}
-                    width={40}
-                    height={16}
-                  />
-                  <span className={`text-sm font-medium ${
-                    metrics[key] >= 70 ? 'text-green-500' : 
-                    metrics[key] >= 50 ? 'text-yellow-500' : 
-                    'text-red-500'
-                  }`}>
-                    {metrics[key].toFixed(0)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-          )}
-          
-          {/* Performance Metrics */}
-          {metrics && (metrics.responseTime > 0 || metrics.tokenEfficiency > 0) && (
-            <div className="border-t border-[#1a1a1a] pt-3 flex gap-4">
-              {metrics.responseTime > 0 && (
-                <MetricBadge 
-                  label="Responstid" 
-                  value={metrics.responseTime} 
-                  max={5000}
-                  format="number"
-                />
-              )}
-              {metrics.tokenEfficiency > 0 && (
-                <MetricBadge 
-                  label="Token-effektivitet" 
-                  value={metrics.tokenEfficiency} 
-                  max={100}
-                  format="percentage"
-                />
-              )}
             </div>
           )}
         </div>

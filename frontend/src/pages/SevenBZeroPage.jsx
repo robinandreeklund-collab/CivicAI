@@ -1514,6 +1514,7 @@ export default function SevenBZeroPage() {
                   version: data.zero?.model || 'OpenSeek-7B-Zero',
                   compareMode: true,
                   externalCount: data.externalResponses?.length || 0,
+                  externalResponses: data.externalResponses || [], // Include external responses with MTA-16 data
                   compression: data.compression,
                   thinkingChain: compareThinkingEvents, // Attach thinking events
                 }
@@ -3613,6 +3614,47 @@ export default function SevenBZeroPage() {
                           {convertEmojis(msg.debateMode ? msg.text : (msg.isTyping ? currentTypingText : msg.text))}
                         </ReactMarkdown>
                       )}
+                    </div>
+                  )}
+                  
+                  {/* MTA-16 Summary - Show in compare mode after ONESEEK's answer */}
+                  {!msg.debateMode && !msg.isTyping && msg.compareMode && msg.externalResponses && msg.externalResponses.length > 0 && (
+                    <div className={`mt-6 rounded-lg border ${
+                      whiteMode ? 'bg-[#fafafa] border-[#e0e0e0]' : 'bg-[#0a0a0a] border-[#1a1a1a]'
+                    }`}>
+                      <div className={`px-4 py-3 border-b ${
+                        whiteMode ? 'border-[#e0e0e0]' : 'border-[#1a1a1a]'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">📊</span>
+                          <h4 className={`text-sm font-medium uppercase tracking-wider ${
+                            whiteMode ? 'text-[#666]' : 'text-[#888]'
+                          }`}>
+                            MTA-16 Analys Sammanfattning
+                          </h4>
+                        </div>
+                      </div>
+                      <div className="p-4 space-y-3">
+                        {msg.externalResponses.filter(r => r.mta16Analysis).map((response, idx) => (
+                          <div 
+                            key={idx}
+                            className={`p-3 rounded-lg ${
+                              whiteMode ? 'bg-white border border-[#e0e0e0]' : 'bg-[#111] border border-[#1a1a1a]'
+                            }`}
+                          >
+                            <div className={`text-xs font-medium uppercase tracking-wider mb-2 ${
+                              whiteMode ? 'text-purple-600' : 'text-purple-400'
+                            }`}>
+                              {response.agent.toUpperCase()}
+                            </div>
+                            <div className={`text-xs whitespace-pre-wrap leading-relaxed ${
+                              whiteMode ? 'text-[#555]' : 'text-[#aaa]'
+                            }`}>
+                              {response.mta16Analysis}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                   
