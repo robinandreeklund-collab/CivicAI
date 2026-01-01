@@ -591,12 +591,17 @@ async function handleZeroCompareFlow(req, res) {
             agent: extResponse.agent,
             analysis: mta16Result.response,
           });
-          console.log(`  ✅ MTA-16 for ${extResponse.agent} complete`);
+          const isSimulated = mta16Result.model?.includes('simulated') || mta16Result.model?.includes('fallback');
+          console.log(`  ✅ MTA-16 for ${extResponse.agent} complete${isSimulated ? ' (simulated)' : ''} - ${mta16Result.response.length} chars`);
         } else {
-          console.warn(`  ⚠️  MTA-16 failed for ${extResponse.agent}`);
+          console.warn(`  ⚠️  MTA-16 failed for ${extResponse.agent} - no response received`);
+          if (mta16Result.error) {
+            console.warn(`     Error: ${mta16Result.error}`);
+          }
         }
       } catch (error) {
         console.error(`  ❌ MTA-16 error for ${extResponse.agent}:`, error.message);
+        console.error(`     Stack: ${error.stack}`);
       }
     }
     
