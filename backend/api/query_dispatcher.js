@@ -576,12 +576,23 @@ async function handleZeroCompareFlow(req, res) {
           extResponse.response
         );
         
+        console.log(`  📝 MTA-16 prompt length: ${mta16Prompt.length} chars`);
+        console.log(`  📝 Prompt preview: ${mta16Prompt.substring(0, 150)}...`);
+        
         // Call ONESEEK to perform MTA-16 analysis
         const mta16Result = await getOpenSeekResponse(mta16Prompt, {
           profileId: 'zero',
           systemPrompt: 'Du är Zero, ONESEEK:s transparensanalysator. Utför MTA-16 analys exakt enligt instruktionerna.',
           max_tokens: 1024, // Enough for detailed analysis
           temperature: 0.3, // Lower temperature for more consistent analysis
+        });
+        
+        console.log(`  📥 MTA-16 result for ${extResponse.agent}:`, {
+          hasResponse: !!mta16Result.response,
+          responseLength: mta16Result.response?.length || 0,
+          model: mta16Result.model,
+          hasError: !!mta16Result.error,
+          error: mta16Result.error
         });
         
         if (mta16Result.response) {
@@ -593,6 +604,7 @@ async function handleZeroCompareFlow(req, res) {
           });
           const isSimulated = mta16Result.model?.includes('simulated') || mta16Result.model?.includes('fallback');
           console.log(`  ✅ MTA-16 for ${extResponse.agent} complete${isSimulated ? ' (simulated)' : ''} - ${mta16Result.response.length} chars`);
+          console.log(`  📄 First 200 chars of MTA-16: ${mta16Result.response.substring(0, 200)}...`);
         } else {
           console.warn(`  ⚠️  MTA-16 failed for ${extResponse.agent} - no response received`);
           if (mta16Result.error) {
@@ -781,9 +793,13 @@ async function handleZeroCompareFlow(req, res) {
     // Debug logging for MTA-16
     console.log('\n📊 Response Summary:');
     console.log(`   External responses: ${externalResponses.length}`);
-    externalResponses.forEach(r => {
-      console.log(`   - ${r.agent}: MTA-16 ${r.mta16Analysis ? '✓' : '✗'} (${r.mta16Analysis?.length || 0} chars)`);
+    externalResponses.forEach((r, idx) => {
+      console.log(`   [${idx}] ${r.agent}: MTA-16 ${r.mta16Analysis ? '✓' : '✗'} (${r.mta16Analysis?.length || 0} chars)`);
+      if (r.mta16Analysis) {
+        console.log(`       Preview: ${r.mta16Analysis.substring(0, 100)}...`);
+      }
     });
+    console.log(`   Total MTA-16 analyses in mta16AnalysesText: ${mta16AnalysesText.length} chars`);
     
     // Include individual analyses if chunked mode was used
     if (chunked && openSeekResult.analyses) {
