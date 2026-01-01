@@ -1,0 +1,13 @@
+{
+  "data_reasoning": 0.75,
+  "round1": 0.7,
+  "round2": 0.7,
+  "final": 0.7,
+  "comments": 0.8,
+  "reasoning": 0.75,
+  "reasoning_own": 0.75,
+  "insights": 0.85,
+  "round1_raw": 0.8,
+  "round2_raw": 0.8,
+  "final_raw": 0.8
+}

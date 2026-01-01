@@ -11,6 +11,7 @@ Author: ONESEEK Team
 """
 
 import os
+import re
 import requests
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -18,50 +19,133 @@ from pathlib import Path
 # Get API key from environment
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 
+# Configuration constants
+MIN_QUERY_LENGTH = 10  # Minimum characters for a valid query
+MAX_SOURCES_IN_SUMMARY = 3  # Max sources to include in summary
+CONTENT_PREVIEW_LENGTH = 150  # Characters to show in source content preview
+
+# Compiled regex patterns for query extraction (better performance)
+# Pattern 1: "Tavily-sökning: <query>" or "Tavily search: <query>" or "**Query:** <query>"
+# Also handles: "Tavily-sökning jag vill göra är: <query>"
+# Matches: Optional markdown (\*{0,2}), then Tavily-sökning/Query/query, optional filler text, then colon
+# Captures: Query text (preferably in quotes) until newline, period, or stop words
+# Handles: **Tavily-sökning:, Tavily-sökning jag vill göra är:, Ett specifikt Tavily-sökning jag vill göra är:, **Query:, Query:
+PATTERN_TAVILY_SEARCH = re.compile(
+    r'\*{0,2}\s*(?:specifikt\s+)?(?:Ett\s+specifikt\s+)?Tavily[-\s]s[öo]kning(?:\s+jag\s+vill\s+g[öo]ra\s+[äa]r)?[:\s]+["\']([^"\']+)["\']',
+    re.IGNORECASE
+)
+
+# Pattern 1b: Simpler Tavily-sökning: query (without requiring quotes)
+PATTERN_TAVILY_SIMPLE = re.compile(
+    r'\*{0,2}\s*(?:Tavily[-\s]s[öo]kning|Query|query)\s*[:\s]+["\']?([^"\'\.?\n]{10,})(?:["\'])?(?=[\n\.\*]|Detta|Sök|$)',
+    re.IGNORECASE
+)
+
+# Pattern 2: "Sök: <query>" or "Search: <query>"
+# Matches: Start of line or after punctuation, then S[öo]k[:\s]+
+# Captures: Query text until newline, period, or stop words
+PATTERN_SOK_QUERY = re.compile(
+    r'(?:^|[.\n])S[öo]k[:\s]+["\']?([^"\'\.?\n]+?(?=[\n\.]|Detta|Tavily|$))',
+    re.IGNORECASE | re.MULTILINE
+)
+
+# Pattern 3: Numbered list queries after Tavily-sökning:
+# Matches: Lines starting with digits, period/parenthesis, then quoted text
+# Example: "1. \"query text\"" or "1) \"query text\""
+# Captures: Everything inside quotes
+PATTERN_NUMBERED_QUERY = re.compile(
+    r'^\s*\d+[\.)]\s*["\']([^"\']+)["\']',
+    re.IGNORECASE | re.MULTILINE
+)
+
+# Pattern 3b: Labeled queries with numbers (e.g., "**Query 1:", "- **Query 2:")
+# Matches: Optional dash/asterisk, optional markdown bold, "Query" or "Fråga", number, colon, quoted text
+# Example: "**Query 1: \"text\"" or "- **Query 2: \"text\""
+# Captures: Everything inside quotes
+PATTERN_LABELED_QUERY = re.compile(
+    r'[-\s]*\*{0,2}\s*(?:Query|Fråga)\s*\d+[:\s]+["\']([^"\']+)["\']',
+    re.IGNORECASE
+)
+
+# Pattern 3c: Simple dash-bullet queries (e.g., "- \"query text\"")
+# Matches: Lines starting with dash/bullet, then quoted text
+# Example: "- \"query text\"" or "  - \"query text\""
+# Captures: Everything inside quotes
+PATTERN_DASH_BULLET_QUERY = re.compile(
+    r'^\s*-\s*["\']([^"\']+)["\']',
+    re.IGNORECASE | re.MULTILINE
+)
+
+# Pattern 4: Quoted queries after keywords like "query", "fråga"
+# Matches: "query:" or "fråga:" followed by quoted text
+# Captures: Everything inside quotes
+PATTERN_QUOTED_QUERY = re.compile(
+    r'(?:query|fråga)[:\s]+["\']([^"\']+)["\']',
+    re.IGNORECASE
+)
+
+# Pattern for cleaning trailing text
+PATTERN_CLEAN_TRAILING = re.compile(
+    r'\s+(Detta|För att|Sök|Tavily).*$',
+    re.IGNORECASE
+)
+
 
 def tavily_search(
     query: str,
-    max_results: int = 4,
+    max_results: int = 1,  # Reduced to 1 for limited hardware
     search_depth: str = "advanced",
-    include_answer: bool = True,
+    include_answer: str = "advanced",  # Changed to str to support "advanced" value
     include_domains: Optional[List[str]] = None,
-    exclude_domains: Optional[List[str]] = None
+    exclude_domains: Optional[List[str]] = None,
+    country: str = "sweden",  # NEW: Filter results to Sweden
+    chunks_per_source: int = 5,  # NEW: Limit chunks per source for limited hardware
+    api_key: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Utför en Tavily webbsökning med 100% svenska svar.
     
     Args:
         query: Sökfrågan
-        max_results: Max antal resultat (default 4)
+        max_results: Max antal resultat (default 1 for limited hardware)
         search_depth: "basic" eller "advanced"
-        include_answer: Om AI-sammanfattning ska inkluderas
+        include_answer: AI-sammanfattning mode - True/False or "basic"/"advanced" (default "advanced")
         include_domains: Lista med domäner att inkludera
         exclude_domains: Lista med domäner att exkludera
+        country: Country code for geographic filtering (default "sweden")
+        chunks_per_source: Number of chunks to extract per source (default 5 for limited hardware)
+        api_key: Optional API key (if not provided, uses environment variable)
         
     Returns:
         Sökresultat eller None vid fel
     """
-    if not TAVILY_API_KEY:
+    # Use provided API key, otherwise fall back to environment variable
+    tavily_key = api_key if api_key else TAVILY_API_KEY
+    
+    if not tavily_key:
         print("[TAVILY] Warning: No API key configured")
         return None
     
     try:
         payload = {
-            "api_key": TAVILY_API_KEY,
+            "api_key": tavily_key,
             "query": query,
             "search_depth": search_depth,
-            "include_answer": include_answer,
+            "include_answer": include_answer,  # Supports True/False or "basic"/"advanced"
             "max_results": max_results,
+            "chunks_per_source": chunks_per_source,  # Limit chunks per source for limited hardware
             "include_domains": include_domains or [],
             "exclude_domains": exclude_domains or [],
             # ONESEEK Δ+: Force Swedish language responses
-            "language": "sv"
+            "language": "sv",
+            # NEW: Geographic filtering for Sweden
+            "country": country
         }
         
         response = requests.post(
             "https://api.tavily.com/search",
             json=payload,
-            timeout=10
+            timeout=15  # Increased timeout for advanced search
         )
         
         if response.status_code == 200:
@@ -120,17 +204,18 @@ def get_tavily_answer(data: Optional[Dict[str, Any]]) -> Optional[str]:
     return data.get("answer")
 
 
-def search_with_sources(query: str) -> Dict[str, Any]:
+def search_with_sources(query: str, api_key: Optional[str] = None) -> Dict[str, Any]:
     """
     Utför sökning och returnera svar med källor.
     
     Args:
         query: Sökfrågan
+        api_key: Optional API key (if not provided, uses environment variable)
         
     Returns:
         Dict med answer, sources, och raw_data
     """
-    data = tavily_search(query)
+    data = tavily_search(query, api_key=api_key)
     
     return {
         "answer": get_tavily_answer(data),
@@ -158,12 +243,13 @@ SWEDISH_PRIORITY_DOMAINS = [
 ]
 
 
-def search_swedish_sources(query: str) -> Optional[Dict[str, Any]]:
+def search_swedish_sources(query: str, api_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Sökning med prioritet för svenska myndighetskällor.
     
     Args:
         query: Sökfrågan
+        api_key: Optional API key (if not provided, uses environment variable)
         
     Returns:
         Sökresultat med svenska källor prioriterade
@@ -171,8 +257,115 @@ def search_swedish_sources(query: str) -> Optional[Dict[str, Any]]:
     return tavily_search(
         query=query,
         include_domains=SWEDISH_PRIORITY_DOMAINS,
-        max_results=6
+        max_results=1,  # Single best result for limited hardware
+        search_depth="advanced",
+        include_answer="advanced",
+        chunks_per_source=5,  # Limit chunks for limited hardware
+        country="sweden",
+        api_key=api_key
     )
+
+
+def extract_tavily_queries(reasoning_text: str) -> List[str]:
+    """
+    Extract Tavily search queries from ONESEEK's Data Reasoning text.
+    
+    Looks for patterns like:
+    - "Tavily-sökning: <query>" or "Tavily-sökning jag vill göra är: <query>"
+    - "**Query:** <query>"
+    - "Sök: <query>"
+    - Numbered lists: "1. \"query\""
+    - Labeled queries: "**Query 1: \"query\"", "- **Query 2: \"query\""
+    - Dash-bullet queries: "- \"query\""
+    - Queries in quotes after keywords
+    
+    Args:
+        reasoning_text: The Data Reasoning text from ONESEEK
+        
+    Returns:
+        List of extracted search queries
+    """
+    queries = []
+    
+    # Use pre-compiled patterns for better performance
+    # Pattern 1: Quoted queries after Tavily-sökning (prioritize these)
+    matches1 = PATTERN_TAVILY_SEARCH.findall(reasoning_text)
+    queries.extend([m.strip() for m in matches1])
+    
+    # Pattern 1b: Simple Tavily-sökning without requiring quotes
+    matches1b = PATTERN_TAVILY_SIMPLE.findall(reasoning_text)
+    queries.extend([m.strip() for m in matches1b])
+    
+    # Pattern 2: "Sök: <query>"
+    matches2 = PATTERN_SOK_QUERY.findall(reasoning_text)
+    queries.extend([m.strip() for m in matches2])
+    
+    # Pattern 3: Numbered list queries (1. "query", 2. "query")
+    matches3 = PATTERN_NUMBERED_QUERY.findall(reasoning_text)
+    queries.extend([m.strip() for m in matches3])
+    
+    # Pattern 3b: Labeled queries with numbers (**Query 1: "query", - **Query 2: "query")
+    matches3b = PATTERN_LABELED_QUERY.findall(reasoning_text)
+    queries.extend([m.strip() for m in matches3b])
+    
+    # Pattern 3c: Simple dash-bullet queries (- "query")
+    matches3c = PATTERN_DASH_BULLET_QUERY.findall(reasoning_text)
+    queries.extend([m.strip() for m in matches3c])
+    
+    # Pattern 4: Quoted queries after keywords
+    matches4 = PATTERN_QUOTED_QUERY.findall(reasoning_text)
+    queries.extend([m.strip() for m in matches4])
+    
+    # Clean up queries: remove trailing text that's not part of the query
+    cleaned_queries = []
+    for q in queries:
+        q = PATTERN_CLEAN_TRAILING.sub('', q)
+        q = q.strip()
+        if q:
+            cleaned_queries.append(q)
+    
+    # Remove duplicates while preserving order
+    unique_queries = []
+    seen = set()
+    for q in cleaned_queries:
+        if q and q.lower() not in seen and len(q) > MIN_QUERY_LENGTH:
+            unique_queries.append(q)
+            seen.add(q.lower())
+    
+    return unique_queries
+
+
+def summarize_tavily_result(data: Optional[Dict[str, Any]]) -> str:
+    """
+    Summarize Tavily search result for injection into ONESEEK's prompt.
+    
+    Args:
+        data: Tavily search result
+        
+    Returns:
+        Formatted summary with answer and sources
+    """
+    if not data:
+        return "Ingen data tillgänglig."
+    
+    result = ""
+    
+    # Add AI summary if available
+    answer = data.get("answer")
+    if answer:
+        result += f"**Sammanfattning:** {answer}\n\n"
+    
+    # Add top sources
+    results = data.get("results", [])
+    if results:
+        result += "**Källor:**\n"
+        for i, res in enumerate(results[:MAX_SOURCES_IN_SUMMARY], 1):
+            title = res.get("title", "Okänd")
+            url = res.get("url", "")
+            content = res.get("content", "")[:CONTENT_PREVIEW_LENGTH]
+            result += f"{i}. [{title}]({url})\n   {content}...\n"
+    
+    return result.strip()
 
 
 if __name__ == "__main__":
@@ -193,3 +386,17 @@ if __name__ == "__main__":
         print(f"\nKällor:\n{result['sources']}")
     
     print(f"\nSpråk: {result['language']}")
+    
+    # Test query extraction
+    print("\n" + "=" * 60)
+    print("Testing Query Extraction")
+    print("=" * 60)
+    
+    test_reasoning = """
+    Andra modeller pratar om befolkning men saknar aktuella siffror.
+    Tavily-sökning: "Senaste befolkningsstatistik Stockholm 2025 SCB"
+    Detta behövs för att faktakolla påståenden om arbetskraft.
+    """
+    
+    extracted = extract_tavily_queries(test_reasoning)
+    print(f"\nExtraherade queries: {extracted}")

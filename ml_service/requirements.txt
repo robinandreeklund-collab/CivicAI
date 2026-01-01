@@ -54,3 +54,11 @@ sentence-transformers>=2.2.0
 
 # Async HTTP client for parallel API fetching
 aiohttp>=3.9.0
+
+# =============================================================================
+# TAVILY SUMMARIZATION (Data Reasoning Backend)
+# =============================================================================
+
+# BERT extractive summarizer for lightweight, GPU-efficient summarization
+# ~500MB GPU footprint (vs 2GB+ for generative models like mBART)
+bert-extractive-summarizer>=0.10.1

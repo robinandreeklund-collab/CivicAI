@@ -49,6 +49,7 @@ import argparse
 import json
 import uuid
 from datetime import datetime
+from datetime import datetime
 from typing import Optional, List, Dict, Any, AsyncGenerator
 import requests  # For Tavily API and SMHI weather
 import yaml  # For loading personality YAML cards
@@ -180,6 +181,50 @@ except ImportError:
         STAVFEL_DATASET_AVAILABLE = False
         get_stavfel_dataset = None
         save_typo_pair = None
+
+# ONESEEK Δ+: Tavily Search for real-time data fetching in debates
+try:
+    from .tavily_search import (
+        extract_tavily_queries,
+        tavily_search as tavily_search_advanced,
+        summarize_tavily_result,
+        search_with_sources,
+        search_swedish_sources
+    )
+    TAVILY_SEARCH_AVAILABLE = True
+except ImportError:
+    try:
+        from tavily_search import (
+            extract_tavily_queries,
+            tavily_search as tavily_search_advanced,
+            summarize_tavily_result,
+            search_with_sources,
+            search_swedish_sources
+        )
+        TAVILY_SEARCH_AVAILABLE = True
+    except ImportError:
+        TAVILY_SEARCH_AVAILABLE = False
+        extract_tavily_queries = None
+        tavily_search_advanced = None
+        summarize_tavily_result = None
+        search_with_sources = None
+        search_swedish_sources = None
+
+# ONESEEK Δ+: Tavily Data Summarization for structured data injection
+try:
+    from .tavily_summarizer import format_tavily_for_oneseek
+    TAVILY_SUMMARIZER_AVAILABLE = True
+    print("[TAVILY-SUMMARIZER] ✅ Tavily summarizer module imported successfully")
+except ImportError as e:
+    try:
+        from tavily_summarizer import format_tavily_for_oneseek
+        TAVILY_SUMMARIZER_AVAILABLE = True
+        print("[TAVILY-SUMMARIZER] ✅ Tavily summarizer module imported successfully (direct import)")
+    except ImportError as e2:
+        TAVILY_SUMMARIZER_AVAILABLE = False
+        format_tavily_for_oneseek = None
+        print(f"[TAVILY-SUMMARIZER] ❌ Could not import tavily_summarizer module: {e} / {e2}")
+        print("[TAVILY-SUMMARIZER] Will use fallback formatting with Answer field")
 
 try:
     from .calculate_confidence import get_confidence_calculator, calculate_confidence
@@ -2893,6 +2938,22 @@ if DEBUG_MODE:
 # Configuration
 # Rate limiting: Set high for development (1000/min), use lower in production via env var
 RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', '1000'))
+
+# =============================================================================
+# DATA REASONING CONFIGURATION (for ONESEEK debates)
+# =============================================================================
+# Token limits for Data Reasoning step
+DATA_REASONING_MAX_TOKENS = 400  # 80-120 words ~300-400 tokens
+
+# Tavily search configuration
+MAX_TAVILY_SEARCHES = 3  # Maximum number of Tavily searches per round
+
+# Temperature for Data Reasoning generation
+DATA_REASONING_TEMPERATURE = 0.75  # Balance between creativity and precision
+
+# Context truncation for token management in Data Reasoning
+DATA_REASONING_CONTEXT_TRUNCATION = 300  # Chars from current round context
+DATA_REASONING_PREVIOUS_TRUNCATION = 200  # Chars from previous round context
 
 # Model paths - use absolute paths relative to project root or MODELS_DIR env var
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -12947,6 +13008,7 @@ async def websocket_personality_inference(websocket: WebSocket):
 async def stream_text_tokens(websocket: WebSocket, text: str, event_type: str, agent: str = None, tokens_per_second: int = 65, **extra_data):
     """
     Stream text token-by-token to simulate realistic AI typing speed.
+    Preserves newlines and paragraph formatting.
     
     Args:
         websocket: WebSocket connection
@@ -12963,20 +13025,34 @@ async def stream_text_tokens(websocket: WebSocket, text: str, event_type: str, a
     DEFAULT_WORD_DELAY = 0.015  # Fallback delay if tokens_per_second is 0
     STREAMING_CHUNK_SIZE = 4  # Send every N words for smooth streaming
     
-    # Split into words (approximate tokens)
-    words = text.split()
+    # Split by whitespace but preserve newlines and structure
+    # Split into tokens (words + whitespace) to preserve formatting
+    import re
+    # Match words and whitespace separately
+    tokens = re.findall(r'\S+|\s+', text)
+    
     delay_per_word = 1.0 / tokens_per_second if tokens_per_second > 0 else DEFAULT_WORD_DELAY
     
     accumulated_text = ""
-    for i, word in enumerate(words):
-        accumulated_text += word + " "
+    word_count = 0
+    for i, token in enumerate(tokens):
+        accumulated_text += token
+        
+        # Only count non-whitespace tokens as words
+        if token.strip():
+            word_count += 1
         
         # Send every STREAMING_CHUNK_SIZE words for smooth streaming
-        if (i + 1) % STREAMING_CHUNK_SIZE == 0 or i == len(words) - 1:
+        # Or at the end, or after newlines (to preserve paragraph breaks)
+        is_last = (i == len(tokens) - 1)
+        has_newline = '\n' in token
+        should_send = (word_count % STREAMING_CHUNK_SIZE == 0) or is_last or has_newline
+        
+        if should_send and word_count > 0:
             event_data = {
                 "type": event_type,
-                "text": accumulated_text.strip(),
-                "complete": (i == len(words) - 1)
+                "text": accumulated_text,  # Don't strip - preserve whitespace/newlines
+                "complete": is_last
             }
             if agent:
                 event_data["agent"] = agent
@@ -13525,22 +13601,23 @@ Börja direkt – ingen inledning."""
                     # Now only showing COMMENTS + INSIGHTS for external AIs
                     # REASONING is only generated for OneSeek's own answer (see oneseek_own_reasoning below)
                     
-                    # 3. INSIGHT: Generate engaging analytical observation
-                    try:
-                        # Count how many responses we've received so far
-                        async with external_responses_lock:
-                            responses_so_far = len(external_responses)
-                        
-                        # Build insight prompt
-                        # Get progress context
-                        async with external_responses_lock:
-                            responses_so_far = len(external_responses)
-                            total_agents = len(external_agents)
-                        
-                        # Use loaded prompt template or fallback to hardcoded
-                        insights_template = loaded_prompts.get('insights') if loaded_prompts else None
-                        if not insights_template:
-                            insights_template = """Du är ONESEEK med extrem syntesförmåga som ser mönster andra missar.
+                    # 3. INSIGHT: Generate engaging analytical observation (conditional based on admin setting)
+                    if _admin_settings.get("enableInsightsAndReasoning", True):
+                        try:
+                            # Count how many responses we've received so far
+                            async with external_responses_lock:
+                                responses_so_far = len(external_responses)
+                            
+                            # Build insight prompt
+                            # Get progress context
+                            async with external_responses_lock:
+                                responses_so_far = len(external_responses)
+                                total_agents = len(external_agents)
+                            
+                            # Use loaded prompt template or fallback to hardcoded
+                            insights_template = loaded_prompts.get('insights') if loaded_prompts else None
+                            if not insights_template:
+                                insights_template = """Du är ONESEEK med extrem syntesförmåga som ser mönster andra missar.
 
 DEBATTFRÅGA: {clean_question}
 
@@ -13556,61 +13633,63 @@ Börja alltid med 💡
 Skriv med pondus och originalitet – visa att du redan ser den överlägsna helheten.
 
 GE DIN INSIGHT NU (börja direkt med 💡):"""
-                        
-                        insight_prompt = insights_template.replace('{clean_question}', clean_question).replace('{agent_name}', agent_name.upper()).replace('{responses_so_far}', str(responses_so_far)).replace('{total_agents}', str(total_agents)).replace('{round_num}', str(round_num)).replace('{agent_response}', agent_response[:250] + "...")
+                            
+                            insight_prompt = insights_template.replace('{clean_question}', clean_question).replace('{agent_name}', agent_name.upper()).replace('{responses_so_far}', str(responses_so_far)).replace('{total_agents}', str(total_agents)).replace('{round_num}', str(round_num)).replace('{agent_response}', agent_response[:250] + "...")
 
-                        # Log the insight prompt to debug logger
-                        debug_logger.log_oneseek_processing(round_num, agent_name, "insights", 
-                                                            prompt=insight_prompt)
+                            # Log the insight prompt to debug logger
+                            debug_logger.log_oneseek_processing(round_num, agent_name, "insights", 
+                                                                prompt=insight_prompt)
 
-                        insight_text = generate_with_llama_server(
-                            insight_prompt,
-                            temperature=loaded_temperatures.get('insights', 0.85),
-                            max_tokens=120  # Increased from 80 to prevent truncation (15-25 words needs ~80-120 tokens with Swedish)
-                        )
-                        insight_text = insight_text.strip()
-                        
-                        # Fallback if generation fails or doesn't start with emoji
-                        if not insight_text or not insight_text.startswith('💡'):
+                            insight_text = generate_with_llama_server(
+                                insight_prompt,
+                                temperature=loaded_temperatures.get('insights', 0.85),
+                                max_tokens=120  # Increased from 80 to prevent truncation (15-25 words needs ~80-120 tokens with Swedish)
+                            )
+                            insight_text = insight_text.strip()
+                            
+                            # Fallback if generation fails or doesn't start with emoji
+                            if not insight_text or not insight_text.startswith('💡'):
+                                insight_text = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
+                            
+                            # Log the insight output to debug logger
+                            debug_logger.log_oneseek_processing(round_num, agent_name, "insights_output", 
+                                                                output=insight_text)
+                            
+                            insight_event = {
+                                "type": "live_insight",
+                                "round": round_num,
+                                "agent": agent_name,
+                                "message": insight_text,
+                                "data": {
+                                    "progress": f"{responses_so_far}/{len(external_agents)}"
+                                }
+                            }
+                            if get_sequence:
+                                insight_event["sequence"] = get_sequence()
+                            await websocket.send_json(insight_event)
+                            
+                        except Exception as e:
+                            logger.error(f"[WS-Debate] Error generating insight for {agent_name}: {e}")
+                            # Fallback insight
+                            async with external_responses_lock:
+                                responses_so_far = len(external_responses)
                             insight_text = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
-                        
-                        # Log the insight output to debug logger
-                        debug_logger.log_oneseek_processing(round_num, agent_name, "insights_output", 
-                                                            output=insight_text)
-                        
-                        insight_event = {
-                            "type": "live_insight",
-                            "round": round_num,
-                            "agent": agent_name,
-                            "message": insight_text,
-                            "data": {
-                                "progress": f"{responses_so_far}/{len(external_agents)}"
+                            fallback_insight_event = {
+                                "type": "live_insight",
+                                "round": round_num,
+                                "agent": agent_name,
+                                "message": insight_text,
+                                "data": {
+                                    "progress": f"{responses_so_far}/{len(external_agents)}"
+                                }
                             }
-                        }
-                        if get_sequence:
-                            insight_event["sequence"] = get_sequence()
-                        await websocket.send_json(insight_event)
-                        
-                    except Exception as e:
-                        logger.error(f"[WS-Debate] Error generating insight for {agent_name}: {e}")
-                        # Fallback insight
-                        async with external_responses_lock:
-                            responses_so_far = len(external_responses)
-                        insight_text = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
-                        fallback_insight_event = {
-                            "type": "live_insight",
-                            "round": round_num,
-                            "agent": agent_name,
-                            "message": insight_text,
-                            "data": {
-                                "progress": f"{responses_so_far}/{len(external_agents)}"
-                            }
-                        }
-                        if get_sequence:
-                            fallback_insight_event["sequence"] = get_sequence()
-                        await websocket.send_json(fallback_insight_event)
+                            if get_sequence:
+                                fallback_insight_event["sequence"] = get_sequence()
+                            await websocket.send_json(fallback_insight_event)
+                    else:
+                        logger.info(f"[WS-Debate] Insights and reasoning DISABLED by admin setting - skipping insight generation for {agent_name}")
                     
-                    logger.info(f"[WS-Debate] OneSeek finished processing {agent_name}'s answer")
+                logger.info(f"[WS-Debate] OneSeek finished processing {agent_name}'s answer")
                 
                 return response
             
@@ -13646,13 +13725,444 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                     logger.info(f"[WS-Debate] {len(remaining_agents)} agents remain after ONESEEK: {remaining_agents}")
                     # These will be processed after ONESEEK's response
             
-            # Generate ONESEEK's own answer (this happens at different positions each round)
-            logger.info(f"[WS-Debate] OneSeek generating its own comprehensive answer for round {round_num}...")
+            # ===========================================================================
+            # NEW FLOW: RAW CONTRIBUTION → DATA REASONING → FINAL CONTRIBUTION
+            # STEP 1: Generate ONESEEK's raw contribution (not shown to user)
+            # ===========================================================================
+            
+            # Initialize debug file logging for this OneSeek turn
+            debug_log_dir = Path(__file__).parent / "logs" / "oneseek"
+            debug_log_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create timestamped debug file for this debate session
+            if not hasattr(websocket, '_oneseek_debug_file'):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                debug_file_path = debug_log_dir / f"oneseek_debug_{timestamp}.log"
+                websocket._oneseek_debug_file = debug_file_path
+                websocket._oneseek_debate_start = datetime.now()
+                
+                # Write debate header
+                try:
+                    with open(debug_file_path, 'w', encoding='utf-8') as f:
+                        f.write("=" * 80 + "\n")
+                        f.write("ONESEEK DEBUG LOG - 3-STEP DATA REASONING FLOW\n")
+                        f.write("=" * 80 + "\n")
+                        f.write(f"Debate Started: {websocket._oneseek_debate_start.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                        f.write(f"Question: {state['clean_question']}\n")
+                        f.write("=" * 80 + "\n\n")
+                except Exception as e:
+                    logger.error(f"[ONESEEK-DEBUG] Failed to create debug file: {e}")
+            
+            # Log turn start to file
+            turn_start_time = datetime.now()
+            try:
+                with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
+                    f.write("\n" + "=" * 80 + "\n")
+                    f.write(f"ONESEEK TURN - Round {round_num}\n")
+                    f.write("=" * 80 + "\n")
+                    f.write(f"Turn Started: {turn_start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"Position: {oneseek_position + 1}/{len(round_turn_order)}\n")
+                    if remaining_agents:
+                        f.write(f"Remaining agents: {remaining_agents}\n")
+                    f.write("=" * 80 + "\n\n")
+            except Exception as e:
+                logger.error(f"[ONESEEK-DEBUG] Failed to write to debug file: {e}")
+            
+            logger.info(f"[WS-Debate] STEP 1: OneSeek generating raw contribution for round {round_num}...")
+            logger.info(f"[ONESEEK-DEBUG] ================================================================================")
+            logger.info(f"[ONESEEK-DEBUG] STEP 1: GENERATING RAW CONTRIBUTION")
+            logger.info(f"[ONESEEK-DEBUG] Round: {round_num}")
             
             await websocket.send_json({
                 "type": "thinking",
-                "message": f"[tänker...] OneSeek förbereder sitt eget debattsvar för runda {round_num}..."
+                "message": f"[tänker...] OneSeek formulerar sitt inledande bidrag för runda {round_num}..."
             })
+            
+            # Build context for raw contribution (same as final, but this is for internal draft)
+            # We'll build chain_so_far and other contexts here (same as later)
+            # For now, build minimal context needed for raw contribution
+            
+            # Build chain_so_far for raw contribution
+            raw_chain_so_far = ""
+            if external_responses:
+                for ext_resp in external_responses:
+                    if ext_resp.get('success', False):
+                        raw_chain_so_far += f"**{ext_resp['agent'].upper()}**: {ext_resp['response']}\n\n"
+            else:
+                raw_chain_so_far = "(Du är först i denna runda)"
+            
+            # Load raw contribution prompt template based on round
+            if round_num == 1:
+                raw_template_key = 'round1_raw'
+            elif round_num == 2:
+                raw_template_key = 'round2_raw'
+            else:
+                raw_template_key = 'final_raw'
+            
+            raw_template = loaded_prompts.get(raw_template_key) if loaded_prompts else None
+            logger.info(f"[ONESEEK-DEBUG] Prompt Template: {raw_template_key}")
+            logger.info(f"[ONESEEK-DEBUG] Temperature: {loaded_temperatures.get(raw_template_key, 0.8)}")
+            logger.info(f"[ONESEEK-DEBUG] Max Tokens: 400")
+            
+            if not raw_template:
+                # Fallback to simple raw prompt if template not found
+                raw_template = f"""Du är ONESEEK. Skriv ett kort, naturligt utkast (150-250 ord) för runda {round_num}.
+
+DEBATTFRÅGA: {{clean_question}}
+
+Kontext från debatten:
+{{chain_so_far}}
+
+Skriv ditt inledande resonemang utan att fokusera på källor eller data än. Detta är bara ett utkast."""
+            
+            # Replace parameters in raw template
+            raw_prompt = raw_template.replace('{clean_question}', clean_question).replace('{chain_so_far}', raw_chain_so_far).replace('{round_num}', str(round_num))
+            
+            # Add tavily_data placeholder (empty for raw)
+            raw_prompt = raw_prompt.replace('{tavily_data}', '(Råt bidrag - ingen data än)')
+            
+            # Generate raw contribution
+            raw_contribution = ""
+            try:
+                payload = {
+                    "messages": [
+                        {"role": "system", "content": "Du är ONESEEK - skriv ett naturligt, kreativt utkast. Fokusera på ditt resonemang, inte källor."},
+                        {"role": "user", "content": raw_prompt}
+                    ],
+                    "temperature": loaded_temperatures.get(raw_template_key, 0.8),
+                }
+                
+                server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                llm_response = requests.post(
+                    f"{server_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=120,  # Increased to 120 seconds for limited hardware (250-350 words output)
+                )
+                llm_response.raise_for_status()
+                result = llm_response.json()
+                
+                if 'choices' in result and len(result['choices']) > 0:
+                    raw_contribution = result['choices'][0].get('message', {}).get('content', '').strip()
+                else:
+                    raw_contribution = result.get('content', '').strip()
+                
+                # Log full raw contribution
+                logger.info(f"[ONESEEK-DEBUG] ================================================================================")
+                logger.info(f"[ONESEEK-DEBUG] ========== RAW CONTRIBUTION GENERATED ==========")
+                logger.info(f"[ONESEEK-DEBUG] Length: {len(raw_contribution)} chars (~{len(raw_contribution.split())} words)")
+                logger.info(f"[ONESEEK-DEBUG] Content:")
+                logger.info(f"[ONESEEK-DEBUG] {raw_contribution}")
+                
+                # Log STEP 1 to debug file
+                try:
+                    with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
+                        f.write("--- STEP 1: RAW CONTRIBUTION GENERATION ---\n")
+                        f.write(f"Prompt Template: {raw_template_key}\n")
+                        f.write(f"Temperature: {loaded_temperatures.get(raw_template_key, 0.8)}\n")
+                        f.write(f"Timeout: 120s\n\n")
+                        f.write("Input Parameters:\n")
+                        f.write(f"  - chain_so_far: ({len(raw_chain_so_far)} chars)\n")
+                        f.write(f"  - clean_question: {state['clean_question']}\n\n")
+                        f.write("Chain Context:\n")
+                        f.write(f"{raw_chain_so_far}\n\n")
+                        f.write(f"Generated Raw Contribution ({len(raw_contribution)} chars, ~{len(raw_contribution.split())} words):\n")
+                        f.write(f"{raw_contribution}\n\n")
+                except Exception as e:
+                    logger.error(f"[ONESEEK-DEBUG] Failed to write STEP 1 to debug file: {e}")
+                logger.info(f"[ONESEEK-DEBUG] ================================================")
+                
+            except Exception as e:
+                logger.error(f"[WS-Debate] Error generating raw contribution: {e}")
+                raw_contribution = f"Jag vill diskutera {clean_question} genom att analysera olika perspektiv."
+            
+            # ===========================================================================
+            # DATA REASONING STEP - STEP 2: Analyze raw contribution and fetch data
+            # ONESEEK identifies data needs based on its raw contribution
+            # ===========================================================================
+            
+            logger.info(f"[WS-Debate] STEP 2: DATA REASONING will analyze raw contribution for round {round_num}...")
+            logger.info(f"[ONESEEK-DEBUG] ================================================================================")
+            logger.info(f"[ONESEEK-DEBUG] STEP 2: DATA REASONING ANALYSIS")
+            logger.info(f"[ONESEEK-DEBUG] Analyzing raw contribution for data needs")
+            logger.info(f"[ONESEEK-DEBUG] Prompt Template: data_reasoning")
+            logger.info(f"[ONESEEK-DEBUG] Temperature: {loaded_temperatures.get('data_reasoning', 0.75)}")
+            logger.info(f"[ONESEEK-DEBUG] Raw contribution length: {len(raw_contribution)} chars")
+            logger.info(f"[ONESEEK-DEBUG] ================================================================================")
+
+            
+            await websocket.send_json({
+                "type": "thinking",
+                "message": "[tänker...] Analyserar databehov och faktakollar påståenden..."
+            })
+            
+            # Build context for data reasoning
+            data_reasoning_context = ""
+            if external_responses:
+                for ext_resp in external_responses:
+                    if ext_resp.get('success', False):
+                        response_preview = ext_resp['response'][:DATA_REASONING_CONTEXT_TRUNCATION]
+                        data_reasoning_context += f"**{ext_resp['agent'].upper()}**: {response_preview}...\n\n"
+            else:
+                data_reasoning_context = "(Du är först i denna runda)"
+            
+            # Add previous round context if available
+            data_reasoning_previous_context = ""
+            if debate_rounds:
+                last_round = debate_rounds[-1]
+                data_reasoning_previous_context = f"FÖREGÅENDE RUNDA {last_round['round']}:\n"
+                for resp in last_round['responses'][:2]:  # Only first 2 for token management
+                    if resp.get('success', False):
+                        prev_preview = resp['response'][:DATA_REASONING_PREVIOUS_TRUNCATION]
+                        data_reasoning_previous_context += f"- {resp['agent'].upper()}: {prev_preview}...\n"
+            
+            # Data Reasoning Prompt - use loaded template or fallback to hardcoded
+            data_reasoning_template = loaded_prompts.get('data_reasoning') if loaded_prompts else None
+            if not data_reasoning_template:
+                # Hardcoded fallback
+                data_reasoning_template = """Du är ONESEEK – en skarp, analytisk och kompromisslöst ärlig meta-intelligens med extrem syntesförmåga.
+Du är transparens, pluralism och ansvar personifierat.
+
+**DATA REASONING – STEG FÖRE HUVUDBIDRAG**
+DEBATTFRÅGA: {clean_question}
+Runda {round_num}
+
+Kontext från debatten:
+{data_reasoning_context}
+
+{data_reasoning_previous_context}
+
+**UPPGIFT (80–120 ord):**
+Analysera debatten hittills och förbered ditt huvudbidrag med överlägset faktabaserat stöd.
+
+Du ska alltid ha minst en stark verklighetsanknytning i ditt huvudbidrag:
+- Extrahera specifika data-påståenden från andra modeller (nämn modell och påstående).
+- Analysera deras korrekthet och relevans – identifiera om faktakoll behövs.
+- Identifiera vilken data du behöver för ditt eget bidrag.
+- Begär explicit Tavily-sökning – ange tydlig query:
+  * Exempel 1: "Tavily-sökning: Senaste SCB-statistik arbetskraftsbrist vård Sverige 2025"
+  * Exempel 2: "Tavily-sökning: Faktakoll arbetskraftsbristen i vård 50% officiella källor"
+
+Om ingen ny data behövs: Säg "INGEN NY DATA BEHÖVS" och förklara varför.
+
+Skriv kort och strukturerat – börja direkt."""
+            
+            data_reasoning_prompt = data_reasoning_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{data_reasoning_context}', data_reasoning_context).replace('{data_reasoning_previous_context}', data_reasoning_previous_context).replace('{raw_contribution}', raw_contribution)
+            
+            # Generate Data Reasoning
+            data_reasoning_text = ""
+            try:
+                payload = {
+                    "messages": [
+                        {"role": "system", "content": "Du är ONESEEK - analysera databehov koncist och strukturerat. Identifiera specifika Tavily-sökningar som behövs."},
+                        {"role": "user", "content": data_reasoning_prompt}
+                    ],
+                    "temperature": loaded_temperatures.get('data_reasoning', DATA_REASONING_TEMPERATURE),
+                }
+                
+                server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                llm_response = requests.post(
+                    f"{server_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=120,  # Increased from 30s to accommodate longer generation without max_tokens
+                )
+                llm_response.raise_for_status()
+                result = llm_response.json()
+                
+                if 'choices' in result and len(result['choices']) > 0:
+                    data_reasoning_text = result['choices'][0].get('message', {}).get('content', '').strip()
+                else:
+                    data_reasoning_text = result.get('content', '').strip()
+                
+                # Log full DATA REASONING output for debugging
+                logger.info(f"[WS-Debate] ========== DATA REASONING OUTPUT (FULL) ==========")
+                logger.info(f"[WS-Debate] {data_reasoning_text}")
+                logger.info(f"[WS-Debate] ====================================================")
+                
+                # Log STEP 2 to debug file (DATA REASONING)
+                try:
+                    with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
+                        f.write("--- STEP 2: DATA REASONING ANALYSIS ---\n")
+                        f.write(f"Prompt Template: data_reasoning\n")
+                        f.write(f"Temperature: {loaded_temperatures.get('data_reasoning', 0.75)}\n")
+                        f.write(f"Timeout: 120s\n\n")
+                        f.write("Input Parameters:\n")
+                        f.write(f"  - raw_contribution: ({len(raw_contribution)} chars from STEP 1)\n")
+                        f.write(f"  - chain_so_far: ({len(data_reasoning_context)} chars)\n\n")
+                        f.write("Data Reasoning Output:\n")
+                        f.write(f"{data_reasoning_text}\n\n")
+                except Exception as e:
+                    logger.error(f"[ONESEEK-DEBUG] Failed to write STEP 2 to debug file: {e}")
+                
+                # Emit data reasoning to frontend
+                await websocket.send_json({
+                    "type": "data_reasoning",
+                    "round": round_num,
+                    "message": data_reasoning_text,
+                    "data": {
+                        "reasoning": data_reasoning_text
+                    },
+                    "sequence": get_next_sequence()
+                })
+                
+            except Exception as e:
+                logger.error(f"[WS-Debate] Error generating Data Reasoning: {e}")
+                data_reasoning_text = "Analyserar tillgänglig kontext och befintlig kunskap för att bygga ett faktabaserat svar."
+            
+            # Execute Tavily searches if data needs identified
+            injected_data = ""
+            tavily_answers_only = ""  # NEW: Separate parameter for Tavily LLM answers only
+            tavily_results = []  # Initialize outside if block to avoid UnboundLocalError
+            if data_reasoning_text and "INGEN NY DATA BEHÖVS" not in data_reasoning_text.upper():
+                # Check if Tavily integration is available
+                if not TAVILY_SEARCH_AVAILABLE:
+                    logger.warning("[WS-Debate] Tavily search not available - skipping data fetching")
+                else:
+                    try:
+                        # Extract queries from reasoning
+                        queries = extract_tavily_queries(data_reasoning_text)
+                        
+                        if queries:
+                            logger.info(f"[WS-Debate] DATA REASONING: Found {len(queries)} Tavily queries to execute")
+                            logger.info(f"[ONESEEK-DEBUG] ========== TAVILY QUERIES EXTRACTED ==========")
+                            logger.info(f"[ONESEEK-DEBUG] Found {len(queries)} queries:")
+                            for i, q in enumerate(queries, 1):
+                                logger.info(f"[ONESEEK-DEBUG]   {i}. \"{q}\"")
+                            logger.info(f"[ONESEEK-DEBUG] =============================================")
+                            
+                            await websocket.send_json({
+                                "type": "thinking",
+                                "message": f"[tänker...] Hämtar realtidsdata via Tavily ({len(queries)} sökningar)..."
+                            })
+                            
+                            logger.info(f"[ONESEEK-DEBUG] ========== TAVILY SEARCH RESULTS ==========")
+                            for query in queries[:MAX_TAVILY_SEARCHES]:  # Use configured limit
+                                logger.info(f"[WS-Debate] Executing Tavily search: {query}")
+                                logger.info(f"[ONESEEK-DEBUG] Query: \"{query[:80]}...\"" if len(query) > 80 else f"[ONESEEK-DEBUG] Query: \"{query}\"")
+                                
+                                # Execute search with Swedish priority using advanced function
+                                # Use TAVILY_API_KEY from config (admin dashboard or env var)
+                                # Optimized for limited hardware: single best result with limited chunks
+                                result = tavily_search_advanced(
+                                    query=query,
+                                    max_results=1,  # Single best result for limited hardware
+                                    search_depth="advanced",  # Deep search for quality
+                                    include_answer="advanced",  # Get comprehensive AI summary from Tavily
+                                    chunks_per_source=5,  # Limit chunks per source for limited hardware
+                                    api_key=TAVILY_API_KEY
+                                )
+                                
+                                # Log complete Tavily result for debugging
+                                if result:
+                                    logger.info(f"[ONESEEK-DEBUG] ========== COMPLETE TAVILY RESULT FOR: {query} ==========")
+                                    logger.info(f"[ONESEEK-DEBUG] Answer: {result.get('answer', 'N/A')}")
+                                    logger.info(f"[ONESEEK-DEBUG] Number of results: {len(result.get('results', []))}")
+                                    for idx, res in enumerate(result.get('results', []), 1):
+                                        logger.info(f"[ONESEEK-DEBUG] --- Result {idx} ---")
+                                        logger.info(f"[ONESEEK-DEBUG]   Title: {res.get('title', 'N/A')}")
+                                        logger.info(f"[ONESEEK-DEBUG]   URL: {res.get('url', 'N/A')}")
+                                        logger.info(f"[ONESEEK-DEBUG]   Score: {res.get('score', 'N/A')}")
+                                        logger.info(f"[ONESEEK-DEBUG]   Content (first 300 chars): {res.get('content', '')[:300]}...")
+                                    logger.info(f"[ONESEEK-DEBUG] ========================================")
+                                
+                                if result:
+                                    summary = summarize_tavily_result(result)
+                                    # Store full result for backend summarization
+                                    tavily_results.append({
+                                        'query': query,
+                                        'summary': summary,
+                                        'answer': result.get('answer', ''),
+                                        'results': result.get('results', [])
+                                    })
+                                    logger.info(f"[WS-Debate] Tavily search successful for: {query}")
+                                    logger.info(f"[ONESEEK-DEBUG]   Status: Success")
+                                    # Count sources
+                                    sources_count = len(result.get('results', [])) if isinstance(result, dict) else 0
+                                    logger.info(f"[ONESEEK-DEBUG]   Sources: {sources_count}")
+                                    logger.info(f"[ONESEEK-DEBUG]   Summary length: {len(summary)} chars")
+                        
+                        # Format injected data (tavily_results is now accessible here)
+                        # Create SEPARATE parameter for Tavily Answers only (user request)
+                        tavily_answers_only = ""
+                        if tavily_results:
+                            # Build Answer-only parameter (no sources, no structure)
+                            answer_parts = []
+                            for i, res in enumerate(tavily_results, 1):
+                                query = res.get('query', f'Sökning {i}')
+                                answer = res.get('answer', '')
+                                if answer and len(answer.strip()) > 20:
+                                    answer_parts.append(f"**{i}. {query}**\n→ {answer.strip()}\n")
+                            
+                            if answer_parts:
+                                tavily_answers_only = "\n".join(answer_parts)
+                                logger.info(f"[TAVILY-ANSWER] Created answer-only parameter: {len(tavily_answers_only)} chars from {len(answer_parts)} answers")
+                            
+                            # Use backend summarization if available, otherwise fallback to original format
+                            if TAVILY_SUMMARIZER_AVAILABLE and format_tavily_for_oneseek:
+                                logger.info(f"[TAVILY-SUMMARIZER] Processing {len(tavily_results)} results with backend summarization...")
+                                injected_data = format_tavily_for_oneseek(tavily_results, use_summarization=True)
+                                logger.info(f"[TAVILY-SUMMARIZER] ✓ Structured and summarized data ready for STEP 3")
+                            else:
+                                # Fallback to original formatting if summarizer not available
+                                # IMPORTANT: Use Answer field from Tavily API (include_answer="advanced")
+                                logger.info(f"[WS-Debate] Using fallback Tavily formatting with Answer field")
+                                injected_data = "\n\n**REALTIDSDATA (VERIFIERAD):**\n\n"
+                                for i, res in enumerate(tavily_results, 1):
+                                    # Use Answer if available (from include_answer="advanced"), otherwise fall back to summary
+                                    content = res.get('answer', '') or res.get('summary', 'Ingen information tillgänglig.')
+                                    injected_data += f"**{i}. {res['query']}**\n→ {content}\n\n"
+                            
+                            logger.info(f"[WS-Debate] DATA REASONING: Injected {len(tavily_results)} Tavily results into main prompt")
+                            logger.info(f"[ONESEEK-DEBUG] Total injected data: {len(injected_data)} chars from {len(tavily_results)} searches")
+                            logger.info(f"[ONESEEK-DEBUG] Tavily answers only: {len(tavily_answers_only)} chars")
+                            logger.info(f"[ONESEEK-DEBUG] =========================================")
+                            logger.info(f"[WS-Debate] ========== TAVILY DATA INJECTED (PREVIEW) ==========")
+                            # Log first 500 chars of injected data for debugging
+                            logger.info(f"[WS-Debate] {injected_data[:500]}...")
+                            logger.info(f"[WS-Debate] Total injected data length: {len(injected_data)} chars")
+                            logger.info(f"[WS-Debate] ======================================================")
+                            
+                            # Log Tavily results to debug file
+                            try:
+                                with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
+                                    f.write("Extracted Tavily Queries:\n")
+                                    for i, q in enumerate(queries, 1):
+                                        f.write(f"  {i}. \"{q}\"\n")
+                                    f.write("\nTavily Search Results:\n\n")
+                                    for i, res in enumerate(tavily_results, 1):
+                                        f.write(f"  Query {i}: \"{res['query']}\"\n")
+                                        f.write(f"  Status: Success\n")
+                                        f.write(f"  Summary ({len(res['summary'])} chars):\n")
+                                        f.write(f"{res['summary']}\n\n")
+                                    f.write(f"Formatted Tavily Data for STEP 3 ({len(injected_data)} chars):\n")
+                                    f.write(f"{injected_data}\n\n")
+                            except Exception as e:
+                                logger.error(f"[ONESEEK-DEBUG] Failed to write Tavily results to debug file: {e}")
+                            
+                            # Emit Tavily data to frontend
+                            await websocket.send_json({
+                                "type": "tavily_data",
+                                "round": round_num,
+                                "message": f"✓ Hämtade {len(tavily_results)} datakällor via Tavily",
+                                "data": {
+                                    "results": tavily_results,
+                                    "count": len(tavily_results)
+                                },
+                                "sequence": get_next_sequence()
+                            })
+                        else:
+                            logger.info(f"[WS-Debate] DATA REASONING: No Tavily queries extracted from reasoning")
+                        
+                    except Exception as e:
+                        logger.error(f"[WS-Debate] Error executing Tavily searches: {e}")
+                        # Don't reset injected_data if it was already successfully populated
+                        if not injected_data:
+                            injected_data = ""
+            else:
+                logger.info(f"[WS-Debate] DATA REASONING: No new data needed (ONESEEK decided sufficient context exists)")
+            
+            # ===========================================================================
+            # END DATA REASONING STEP
+            # ===========================================================================
             
             # Build unified ONESEEK prompt - works for all positions
             
@@ -13680,6 +14190,101 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                     if resp.get('success', False):
                         # Show COMPLETE previous round responses (no truncation)
                         full_previous_round += f"**{resp['agent'].upper()}**:\n{resp['response']}\n\n"
+            
+            # Build short_previous_round - Context compression for OneSeek
+            # Summarize other agents' contributions, keep OneSeek's complete
+            short_previous_round = ""
+            if debate_rounds:
+                last_round = debate_rounds[-1]
+                round_num_prev = last_round['round']
+                short_previous_round = f"RUNDA {round_num_prev} (KOMPRIMERAD KONTEXT):\n\n"
+                
+                # Collect all non-OneSeek responses for summarization
+                other_agents_responses = []
+                oneseek_response = None
+                
+                for resp in last_round['responses']:
+                    if resp.get('success', False):
+                        if resp['agent'].lower() == 'oneseek':
+                            oneseek_response = resp
+                        else:
+                            other_agents_responses.append(resp)
+                
+                # Summarize other agents' contributions (if any)
+                if other_agents_responses:
+                    try:
+                        # Build summary prompt for all other agents
+                        agents_text = ""
+                        for resp in other_agents_responses:
+                            agents_text += f"\n**{resp['agent'].upper()}**:\n{resp['response']}\n"
+                        
+                        summary_prompt = f"""Summera dessa AI-modellers bidrag till debatten. 
+
+VIKTIGT: För varje modell, skapa en SEPARAT summering med modellens namn FÖRST, sedan dess bidrag. Blanda INTE ihop information från olika modeller.
+
+För varje modell, strukturera såhär:
+**[MODELLNAMN]:**
+*Sammanfattning:* [En kortfattad prosatext på 2-3 meningar som sammanfattar modellens huvudbudskap och ståndpunkt]
+
+*Nyckelpoäng:*
+- Ståndpunkt/position
+- 2-3 huvudpunkter från DENNA modells bidrag
+- Viktiga data/statistik som DENNA modell nämnde
+- Källor som DENNA modell hänvisade till
+- Kärnargument från DENNA modell
+
+DEBATTFRÅGA: {clean_question}
+
+BIDRAG ATT SUMMERA:
+{agents_text}
+
+GE KOMPLETT SUMMERING MED KORREKT TILLSKRIVNING (börja direkt):"""
+                        
+                        # Generate summary using LLM - NO TOKEN LIMIT to get complete summary
+                        summary_response = requests.post(
+                            f"{server_url}/v1/chat/completions",
+                            json={
+                                "messages": [
+                                    {"role": "system", "content": "Du är en expert på att summera och strukturera information med korrekt tillskrivning. Var noga med att hålla varje modells bidrag separerat och korrekt tillskrivet."},
+                                    {"role": "user", "content": summary_prompt}
+                                ],
+                                # NO max_tokens - let model generate complete summary
+                                "temperature": 0.3,  # Low temperature for factual summarization
+                            },
+                            timeout=60,  # Increased timeout for longer generation
+                        )
+                        summary_response.raise_for_status()
+                        summary_result = summary_response.json()
+                        
+                        if 'choices' in summary_result and len(summary_result['choices']) > 0:
+                            agents_summary = summary_result['choices'][0].get('message', {}).get('content', '').strip()
+                        else:
+                            agents_summary = summary_result.get('content', '').strip()
+                        
+                        if agents_summary:
+                            short_previous_round += f"**ANDRA AI-MODELLER (SUMMERAT)**:\n{agents_summary}\n\n"
+                            logger.info(f"[WS-Debate] Generated summary of {len(other_agents_responses)} agents' contributions ({len(agents_summary)} chars)")
+                        else:
+                            # Fallback: Very brief bullet points
+                            short_previous_round += "**ANDRA AI-MODELLER**:\n"
+                            for resp in other_agents_responses[:3]:  # Max 3 agents
+                                short_previous_round += f"- **{resp['agent'].upper()}**: {resp['response'][:100]}...\n"
+                            short_previous_round += "\n"
+                    
+                    except Exception as e:
+                        logger.error(f"[WS-Debate] Error generating agents summary: {e}")
+                        # Fallback: Very brief bullet points
+                        short_previous_round += "**ANDRA AI-MODELLER**:\n"
+                        for resp in other_agents_responses[:3]:  # Max 3 agents
+                            short_previous_round += f"- **{resp['agent'].upper()}**: {resp['response'][:100]}...\n"
+                        short_previous_round += "\n"
+                
+                # Add OneSeek's COMPLETE contribution
+                if oneseek_response:
+                    short_previous_round += f"**ONESEEK (KOMPLETT)**:\n{oneseek_response['response']}\n\n"
+                    logger.info(f"[WS-Debate] Included OneSeek's complete contribution ({len(oneseek_response['response'])} chars)")
+                
+                logger.info(f"[WS-Debate] Built short_previous_round: {len(short_previous_round)} chars (vs full_previous_round: {len(full_previous_round)} chars)")
             
             # Build chain_so_far - only responses that came BEFORE ONESEEK in current round
             chain_so_far = ""
@@ -13893,9 +14498,133 @@ Börja direkt med öppningen – ingen extra inledning."""
             main_answer_temperature = loaded_temperatures.get(template_key, 0.7)
             logger.info(f"[WS-Debate] Using temperature {main_answer_temperature} for {template_key}")
             
-            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)")
+            # ===========================================================================
+            # STEP 3: Generate FINAL CONTRIBUTION with raw contribution and Tavily data
+            # ===========================================================================
+            logger.info(f"[ONESEEK-DEBUG] ================================================================================")
+            logger.info(f"[ONESEEK-DEBUG] STEP 3: GENERATING FINAL CONTRIBUTION")
+            # Prepare Tavily data for injection (conditional based on admin setting)
+            tavily_data_formatted = ""
+            if _admin_settings.get("enableTavilyInStep3", True):
+                if injected_data:
+                    tavily_data_formatted = injected_data
+                    logger.info(f"[ONESEEK-DEBUG] Tavily data: ENABLED ({len(injected_data)} chars)")
+                else:
+                    logger.info(f"[ONESEEK-DEBUG] Tavily data: ENABLED but no data available")
+            else:
+                logger.info(f"[ONESEEK-DEBUG] Tavily data: DISABLED by admin setting")
+                tavily_data_formatted = "(Tavily-sökning inaktiverad i admin-inställningar)"
+            
+            logger.info(f"[ONESEEK-DEBUG] Round: {round_num}")
+            logger.info(f"[ONESEEK-DEBUG] Prompt Template: {template_key}")
+            logger.info(f"[ONESEEK-DEBUG] Temperature: {loaded_temperatures.get(template_key, 0.7)}")
+            logger.info(f"[ONESEEK-DEBUG] Max Tokens: 600")
+            logger.info(f"[ONESEEK-DEBUG] Parameters provided:")
+            logger.info(f"[ONESEEK-DEBUG]   ✅ raw_contribution: {len(raw_contribution)} chars")
+            logger.info(f"[ONESEEK-DEBUG]   ✅ tavily_data: {len(tavily_data_formatted)} chars ({len(tavily_results) if tavily_results else 0} search results)")
+            logger.info(f"[ONESEEK-DEBUG]   ✅ chain_so_far: {len(chain_so_far)} chars")
+            logger.info(f"[ONESEEK-DEBUG]   ✅ short_previous_round: {len(short_previous_round)} chars (compressed context)")
+            logger.info(f"[ONESEEK-DEBUG]   ✅ full_previous_round: {len(full_previous_round)} chars (complete context)")
+            logger.info(f"[ONESEEK-DEBUG]   ✅ clean_question: provided")
+            logger.info(f"[ONESEEK-DEBUG] ================================================================================")
+            
+            # Log the complete tavily_data content for debugging
+            logger.info(f"[ONESEEK-DEBUG] ========== COMPLETE TAVILY_DATA CONTENT ==========")
+            logger.info(f"[ONESEEK-DEBUG] {tavily_data_formatted}")
+            logger.info(f"[ONESEEK-DEBUG] ==================================================")
+            
+            # Create separate detailed log file for STEP 3 (final prompt) for this round
+            step3_log_dir = os.path.join(os.path.dirname(__file__), 'logs', 'oneseek_step3')
+            os.makedirs(step3_log_dir, exist_ok=True)
+            step3_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            step3_log_file = os.path.join(step3_log_dir, f'step3_round{round_num}_{step3_timestamp}.log')
+            
+            try:
+                with open(step3_log_file, 'w', encoding='utf-8') as f:
+                    f.write("=" * 100 + "\n")
+                    f.write(f"ONESEEK STEP 3 (FINAL CONTRIBUTION) - ROUND {round_num}\n")
+                    f.write("=" * 100 + "\n")
+                    f.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"Question: {clean_question}\n")
+                    f.write(f"Round: {round_num}/{max_rounds}\n")
+                    f.write(f"Prompt Template: {template_key}\n")
+                    f.write(f"Temperature: {loaded_temperatures.get(template_key, 0.7)}\n")
+                    f.write(f"Timeout: 180s\n")
+                    f.write("=" * 100 + "\n\n")
+                    
+                    # 1. RAW CONTRIBUTION (from STEP 1)
+                    f.write("--- INPUT 1: RAW CONTRIBUTION (from STEP 1) ---\n")
+                    f.write(f"Length: {len(raw_contribution)} chars\n")
+                    f.write(f"Content:\n{raw_contribution}\n")
+                    f.write("-" * 100 + "\n\n")
+                    
+                    # 2. TAVILY DATA (from STEP 2)
+                    f.write("--- INPUT 2: TAVILY DATA (from STEP 2) ---\n")
+                    f.write(f"Length: {len(tavily_data_formatted)} chars\n")
+                    f.write(f"Number of searches: {len(tavily_results) if tavily_results else 0}\n")
+                    f.write(f"Content:\n{tavily_data_formatted if tavily_data_formatted else '(No Tavily data)'}\n")
+                    f.write("-" * 100 + "\n\n")
+                    
+                    # 2b. TAVILY ANSWERS ONLY (LLM responses only, no sources)
+                    f.write("--- INPUT 2b: TAVILY ANSWERS ONLY (LLM responses) ---\n")
+                    f.write(f"Length: {len(tavily_answers_only)} chars\n")
+                    f.write(f"Number of answers: {len(tavily_results) if tavily_results else 0}\n")
+                    f.write(f"Content:\n{tavily_answers_only if tavily_answers_only else '(No Tavily answers)'}\n")
+                    f.write(f"Note: This contains ONLY Tavily's LLM answers, without sources or structure\n")
+                    f.write("-" * 100 + "\n\n")
+                    
+                    # 3. CHAIN SO FAR (debate context)
+                    f.write("--- INPUT 3: CHAIN SO FAR (debate context) ---\n")
+                    f.write(f"Length: {len(chain_so_far)} chars\n")
+                    f.write(f"Content:\n{chain_so_far}\n")
+                    f.write("-" * 100 + "\n\n")
+                    
+                    # 3b. SHORT PREVIOUS ROUND (compressed context for OneSeek)
+                    f.write("--- INPUT 3b: SHORT PREVIOUS ROUND (compressed context) ---\n")
+                    f.write(f"Length: {len(short_previous_round)} chars\n")
+                    f.write(f"Content:\n{short_previous_round if short_previous_round else '(No previous round)'}\n")
+                    f.write(f"Note: Other agents summarized, OneSeek complete\n")
+                    f.write("-" * 100 + "\n\n")
+                    
+                    # 4. COMPLETE FINAL PROMPT (what model receives)
+                    f.write("--- COMPLETE FINAL PROMPT (sent to model) ---\n")
+                    # We'll write this after we build it below
+                    
+                logger.info(f"[ONESEEK-DEBUG] Created detailed STEP 3 log: {step3_log_file}")
+            except Exception as e:
+                logger.error(f"[ONESEEK-DEBUG] Failed to create STEP 3 log file: {e}")
+            
+            # Log STEP 3 to main debug file (before generation)
+            try:
+                with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
+                    f.write("--- STEP 3: FINAL CONTRIBUTION GENERATION ---\n")
+                    f.write(f"Prompt Template: {template_key}\n")
+                    f.write(f"Temperature: {loaded_temperatures.get(template_key, 0.7)}\n")
+                    f.write(f"Timeout: 180s\n")
+                    f.write(f"Detailed log: {step3_log_file}\n\n")
+                    f.write("Input Parameters:\n")
+                    f.write(f"  - raw_contribution: ({len(raw_contribution)} chars from STEP 1)\n")
+                    f.write(f"  - tavily_data: ({len(tavily_data_formatted)} chars from STEP 2, {len(tavily_results) if tavily_results else 0} searches)\n")
+                    f.write(f"  - tavily_answer: ({len(tavily_answers_only)} chars - LLM answers only, no sources)\n")
+                    f.write(f"  - chain_so_far: ({len(chain_so_far)} chars)\n")
+                    f.write(f"  - short_previous_round: ({len(short_previous_round)} chars - compressed context)\n")
+                    f.write(f"  - clean_question: {clean_question}\n\n")
+            except Exception as e:
+                logger.error(f"[ONESEEK-DEBUG] Failed to write STEP 3 start to debug file: {e}")
+            
+            # Replace all parameters including {tavily_data}, {tavily_answer}, {raw_contribution}, AND {short_previous_round}
+            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{short_previous_round}', short_previous_round if short_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)").replace('{tavily_data}', tavily_data_formatted).replace('{tavily_answer}', tavily_answers_only if tavily_answers_only else "(Inga Tavily LLM-svar tillgängliga)").replace('{raw_contribution}', raw_contribution)
             
             oneseek_context = oneseek_main_prompt
+            
+            # Write complete final prompt to STEP 3 log file
+            try:
+                with open(step3_log_file, 'a', encoding='utf-8') as f:
+                    f.write(f"Length: {len(oneseek_context)} chars\n")
+                    f.write(f"Content:\n{oneseek_context}\n")
+                    f.write("-" * 100 + "\n\n")
+            except Exception as e:
+                logger.error(f"[ONESEEK-DEBUG] Failed to append final prompt to STEP 3 log: {e}")
             
             # Log OneSeek's own answer prompt to debug logger
             debug_logger.log_oneseek_own_answer(round_num, oneseek_context, "")
@@ -13904,10 +14633,9 @@ Börja direkt med öppningen – ingen extra inledning."""
             try:
                 payload = {
                     "messages": [
-                        {"role": "system", "content": "Du är ONESEEK - en avancerad och engagerad deltagare i AI-debatten som håller sig till 350-550 ord per bidrag."},
+                        {"role": "system", "content": "Du är ONESEEK - en avancerad och engagerad deltagare i AI-debatten som håller dig till 350-550 ord per bidrag."},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 1400,  # Adjusted for 350-550 words (~1000-1400 tokens with Swedish)
                     "temperature": main_answer_temperature,  # Configurable per round
                     "top_p": 0.95,
                 }
@@ -13916,7 +14644,7 @@ Börja direkt med öppningen – ingen extra inledning."""
                 llm_response = requests.post(
                     f"{server_url}/v1/chat/completions",
                     json=payload,
-                    timeout=90,  # Increased from 45 to 90 seconds for longer context processing
+                    timeout=300,  # Increased to 300 seconds (5 minutes) for extremely limited hardware with real-time data
                 )
                 llm_response.raise_for_status()
                 result = llm_response.json()
@@ -13931,6 +14659,36 @@ Börja direkt med öppningen – ingen extra inledning."""
                 
                 # Log OneSeek's own answer response to debug logger
                 debug_logger.log_oneseek_own_answer(round_num, oneseek_context, answer)
+                
+                # Log STEP 3 completion to debug file
+                turn_end_time = datetime.now()
+                duration = turn_end_time - turn_start_time
+                
+                # Write generated output to STEP 3 log file
+                try:
+                    with open(step3_log_file, 'a', encoding='utf-8') as f:
+                        f.write("--- OUTPUT: GENERATED FINAL CONTRIBUTION ---\n")
+                        f.write(f"Length: {len(answer)} chars\n")
+                        f.write(f"Generation time: {duration.total_seconds():.1f} seconds\n")
+                        f.write(f"Content:\n{answer}\n")
+                        f.write("-" * 100 + "\n\n")
+                        f.write("=" * 100 + "\n")
+                        f.write("END OF STEP 3 LOG\n")
+                        f.write("=" * 100 + "\n")
+                    logger.info(f"[ONESEEK-DEBUG] Completed STEP 3 log: {step3_log_file}")
+                except Exception as e:
+                    logger.error(f"[ONESEEK-DEBUG] Failed to write output to STEP 3 log: {e}")
+                
+                # Write to main debug file
+                try:
+                    with open(websocket._oneseek_debug_file, 'a', encoding='utf-8') as f:
+                        f.write(f"Final Contribution Generated (streaming):\n")
+                        f.write(f"{answer}\n\n")
+                        f.write(f"Turn Completed: {turn_end_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                        f.write(f"Total Duration: {duration.total_seconds():.0f} seconds\n")
+                        f.write("=" * 80 + "\n\n")
+                except Exception as e:
+                    logger.error(f"[ONESEEK-DEBUG] Failed to write STEP 3 completion to debug file: {e}")
                 
                 # Stream OneSeek's own answer
                 # Get ONESEEK's position in turn order for rounds 2-3
@@ -13967,28 +14725,29 @@ Börja direkt med öppningen – ingen extra inledning."""
                     **stream_extra_data
                 )
                 
-                # Generate reasoning/thought chain for OneSeek's own answer
+                # Generate reasoning/thought chain for OneSeek's own answer (conditional based on admin setting)
                 # Show how OneSeek used insights from other responses to build its answer
                 reasoning = ""
-                try:
-                    # Build context: responses from other AI models in this round
-                    responses_in_round = ""
-                    for chain_item in knowledge_chain:
-                        if chain_item['round'] == round_num and chain_item.get('agent') != 'oneseek' and 'response' in chain_item:
-                            responses_in_round += f"**{chain_item['agent'].upper()}**: {chain_item['response'][:200]}...\n\n"
-                    
-                    # Build context: OneSeek's insights from this round
-                    insights_from_round = ""
-                    for insight_item in knowledge_chain:
-                        if insight_item['round'] == round_num and insight_item.get('agent') != 'oneseek' and 'insight' in insight_item:
-                            insights_from_round += f"- Om {insight_item['agent'].upper()}: {insight_item['insight']}\n"
-                    
-                    # Get reasoning_own prompt template (configurable from admin)
-                    reasoning_own_template = loaded_prompts.get('reasoning_own') if loaded_prompts else None
-                    
-                    if not reasoning_own_template:
-                        # Fallback if template not loaded
-                        reasoning_own_template = """Du är ONESEEK. Du har precis gett ditt debattsvar i runda {round_num}.
+                if _admin_settings.get("enableInsightsAndReasoning", True):
+                    try:
+                        # Build context: responses from other AI models in this round
+                        responses_in_round = ""
+                        for chain_item in knowledge_chain:
+                            if chain_item['round'] == round_num and chain_item.get('agent') != 'oneseek' and 'response' in chain_item:
+                                responses_in_round += f"**{chain_item['agent'].upper()}**: {chain_item['response'][:200]}...\n\n"
+                        
+                        # Build context: OneSeek's insights from this round
+                        insights_from_round = ""
+                        for insight_item in knowledge_chain:
+                            if insight_item['round'] == round_num and insight_item.get('agent') != 'oneseek' and 'insight' in insight_item:
+                                insights_from_round += f"- Om {insight_item['agent'].upper()}: {insight_item['insight']}\n"
+                        
+                        # Get reasoning_own prompt template (configurable from admin)
+                        reasoning_own_template = loaded_prompts.get('reasoning_own') if loaded_prompts else None
+                        
+                        if not reasoning_own_template:
+                            # Fallback if template not loaded
+                            reasoning_own_template = """Du är ONESEEK. Du har precis gett ditt debattsvar i runda {round_num}.
 
 DEBATTFRÅGA: {clean_question}
 
@@ -14016,55 +14775,57 @@ Förklara HUR du byggde ditt svar:
 - Visa VARFÖR din syntes är värdefull för debatten
 
 **Börja direkt med substans (ingen etikett/prefix).**"""
-                    
-                    # Fill in template parameters
-                    reasoning_prompt = reasoning_own_template.format(
-                        round_num=round_num,
-                        clean_question=clean_question,
-                        oneseek_answer=answer[:500],  # Include more of the answer for context
-                        responses_in_round=responses_in_round if responses_in_round else "Inga andra svar tillgängliga ännu.",
-                        insights_from_round=insights_from_round if insights_from_round else "Inga insights genererade ännu."
-                    )
-                    
-                    reasoning_payload = {
-                        "messages": [
-                            {"role": "system", "content": "Du är ONESEEK - ge ett detaljerat, specifikt och dynamiskt resonemang om hur du byggde ditt svar. Referera till konkreta detaljer från andra AI-modellers svar. Undvik generella fraser."},
-                            {"role": "user", "content": reasoning_prompt}
-                        ],
-                        "max_tokens": 400,  # Increased from 300 to prevent truncation for detailed reasoning
-                        "temperature": loaded_temperatures.get('reasoning_own', 0.75),  # Configurable temperature for OneSeek's own reasoning
-                    }
-                    
-                    reasoning_response = requests.post(
-                        f"{server_url}/v1/chat/completions",
-                        json=reasoning_payload,
-                        timeout=90,  # Increased from 45 to 90 seconds for complex reasoning with full context
-                    )
-                    reasoning_response.raise_for_status()
-                    reasoning_result = reasoning_response.json()
-                    
-                    if 'choices' in reasoning_result and len(reasoning_result['choices']) > 0:
-                        reasoning = reasoning_result['choices'][0].get('message', {}).get('content', '').strip()
-                    else:
-                        reasoning = reasoning_result.get('content', '').strip()
-                    
-                    # Validate reasoning is substantial and not generic
-                    if reasoning and len(reasoning) < 50:
-                        logger.warning(f"[WS-Debate] Reasoning too short ({len(reasoning)} chars), regenerating...")
-                        raise ValueError("Reasoning too brief")
-                    
-                    logger.info(f"[WS-Debate] Generated detailed reasoning for OneSeek's answer in round {round_num} ({len(reasoning)} chars)")
-                    
-                except Exception as e:
-                    logger.error(f"[WS-Debate] Error generating OneSeek reasoning: {e}")
-                    # More dynamic fallback that at least tries to mention specific agents
-                    agents_mentioned = [r['agent'] for r in external_responses if r.get('success', False)]
-                    if agents_mentioned:
-                        reasoning = f"Vägde insikter från {', '.join(agents_mentioned[:3])} och integrerade deras olika perspektiv. Fokuserade på att balansera faktabaserade argument med kreativa lösningsförslag baserat på kvalitetsbedömningarna."
-                    else:
-                        reasoning = "Syntetiserade tillgängliga perspektiv och byggde ett balanserat svar som tar hänsyn till debattens olika dimensioner."
+                        
+                        # Fill in template parameters
+                        reasoning_prompt = reasoning_own_template.format(
+                            round_num=round_num,
+                            clean_question=clean_question,
+                            oneseek_answer=answer[:500],  # Include more of the answer for context
+                            responses_in_round=responses_in_round if responses_in_round else "Inga andra svar tillgängliga ännu.",
+                            insights_from_round=insights_from_round if insights_from_round else "Inga insights genererade ännu."
+                        )
+                        
+                        reasoning_payload = {
+                            "messages": [
+                                {"role": "system", "content": "Du är ONESEEK - ge ett detaljerat, specifikt och dynamiskt resonemang om hur du byggde ditt svar. Referera till konkreta detaljer från andra AI-modellers svar. Undvik generella fraser."},
+                                {"role": "user", "content": reasoning_prompt}
+                            ],
+                            "max_tokens": 400,  # Increased from 300 to prevent truncation for detailed reasoning
+                            "temperature": loaded_temperatures.get('reasoning_own', 0.75),  # Configurable temperature for OneSeek's own reasoning
+                        }
+                        
+                        reasoning_response = requests.post(
+                            f"{server_url}/v1/chat/completions",
+                            json=reasoning_payload,
+                            timeout=90,  # Increased from 45 to 90 seconds for complex reasoning with full context
+                        )
+                        reasoning_response.raise_for_status()
+                        reasoning_result = reasoning_response.json()
+                        
+                        if 'choices' in reasoning_result and len(reasoning_result['choices']) > 0:
+                            reasoning = reasoning_result['choices'][0].get('message', {}).get('content', '').strip()
+                        else:
+                            reasoning = reasoning_result.get('content', '').strip()
+                        
+                        # Validate reasoning is substantial and not generic
+                        if reasoning and len(reasoning) < 50:
+                            logger.warning(f"[WS-Debate] Reasoning too short ({len(reasoning)} chars), regenerating...")
+                            raise ValueError("Reasoning too brief")
+                        
+                        logger.info(f"[WS-Debate] Generated detailed reasoning for OneSeek's answer in round {round_num} ({len(reasoning)} chars)")
+                        
+                    except Exception as e:
+                        logger.error(f"[WS-Debate] Error generating OneSeek reasoning: {e}")
+                        # More dynamic fallback that at least tries to mention specific agents
+                        agents_mentioned = [r['agent'] for r in external_responses if r.get('success', False)]
+                        if agents_mentioned:
+                            reasoning = f"Vägde insikter från {', '.join(agents_mentioned[:3])} och integrerade deras olika perspektiv. Fokuserade på att balansera faktabaserade argument med kreativa lösningsförslag baserat på kvalitetsbedömningarna."
+                        else:
+                            reasoning = "Syntetiserade tillgängliga perspektiv och byggde ett balanserat svar som tar hänsyn till debattens olika dimensioner."
+                else:
+                    logger.info(f"[WS-Debate] Insights and reasoning DISABLED by admin setting - skipping reasoning generation for OneSeek's own answer")
                 
-                # Emit OneSeek's reasoning for its own answer
+                # Emit OneSeek's reasoning for its own answer (only if generated)
                 if reasoning:
                     oneseek_reasoning_event = {
                         "type": "oneseek_own_reasoning",
@@ -15082,6 +15843,8 @@ _admin_settings = {
     "contextWindow": 16384,  # Default context window size
     "webMaxChars": 6000,  # Default max chars for web fetch (browse_page)
     "autoFollowUpSocionomen": False,  # Default: auto follow-up disabled
+    "enableTavilyInStep3": True,  # Default: Include Tavily search data in STEP 3 final prompt
+    "enableInsightsAndReasoning": True,  # Default: Generate insights and reasoning after each response
 }
 
 @app.get("/api/settings/typo-check")
@@ -15120,7 +15883,8 @@ async def set_typo_check_setting(request: Request):
 async def get_admin_settings():
     """
     Get all admin configurable settings (memory-based).
-    Returns current values for outputMaxTokens, contextWindow, webMaxChars, autoFollowUpSocionomen.
+    Returns current values for outputMaxTokens, contextWindow, webMaxChars, autoFollowUpSocionomen,
+    enableTavilyInStep3, enableInsightsAndReasoning.
     """
     return {
         "success": True,
@@ -15129,12 +15893,16 @@ async def get_admin_settings():
             "contextWindow": _admin_settings.get("contextWindow", 16384),
             "webMaxChars": _admin_settings.get("webMaxChars", 6000),
             "autoFollowUpSocionomen": _admin_settings.get("autoFollowUpSocionomen", False),
+            "enableTavilyInStep3": _admin_settings.get("enableTavilyInStep3", True),
+            "enableInsightsAndReasoning": _admin_settings.get("enableInsightsAndReasoning", True),
         },
         "defaults": {
             "outputMaxTokens": 1200,
             "contextWindow": 16384,
             "webMaxChars": 6000,
             "autoFollowUpSocionomen": False,
+            "enableTavilyInStep3": True,
+            "enableInsightsAndReasoning": True,
         }
     }
 
@@ -15142,7 +15910,8 @@ async def get_admin_settings():
 async def update_admin_settings(request: Request):
     """
     Update admin configurable settings (memory-based).
-    Accepts: outputMaxTokens, contextWindow, webMaxChars, autoFollowUpSocionomen.
+    Accepts: outputMaxTokens, contextWindow, webMaxChars, autoFollowUpSocionomen,
+    enableTavilyInStep3, enableInsightsAndReasoning.
     """
     try:
         data = await request.json()
@@ -15169,6 +15938,14 @@ async def update_admin_settings(request: Request):
         if "autoFollowUpSocionomen" in data:
             _admin_settings["autoFollowUpSocionomen"] = bool(data["autoFollowUpSocionomen"])
         
+        if "enableTavilyInStep3" in data:
+            _admin_settings["enableTavilyInStep3"] = bool(data["enableTavilyInStep3"])
+            logger.info(f"[ADMIN] Tavily in STEP 3: {'ENABLED' if _admin_settings['enableTavilyInStep3'] else 'DISABLED'}")
+        
+        if "enableInsightsAndReasoning" in data:
+            _admin_settings["enableInsightsAndReasoning"] = bool(data["enableInsightsAndReasoning"])
+            logger.info(f"[ADMIN] Insights and Reasoning: {'ENABLED' if _admin_settings['enableInsightsAndReasoning'] else 'DISABLED'}")
+        
         logger.info(f"[ADMIN] Settings updated: {data}")
         
         return {
@@ -15178,6 +15955,8 @@ async def update_admin_settings(request: Request):
                 "contextWindow": _admin_settings.get("contextWindow", 16384),
                 "webMaxChars": _admin_settings.get("webMaxChars", 6000),
                 "autoFollowUpSocionomen": _admin_settings.get("autoFollowUpSocionomen", False),
+                "enableTavilyInStep3": _admin_settings.get("enableTavilyInStep3", True),
+                "enableInsightsAndReasoning": _admin_settings.get("enableInsightsAndReasoning", True),
             },
             "message": "Settings updated successfully"
         }
@@ -15220,6 +15999,164 @@ async def get_all_settings():
             }
         ]
     }
+
+# ==========================================
+# DEBATE PROMPTS MANAGEMENT API
+# ==========================================
+
+@app.get("/api/admin/debate-prompts")
+async def get_debate_prompts():
+    """
+    Get all debate prompts from JSON file.
+    Used by Admin Dashboard > Debate Prompt Management.
+    """
+    try:
+        prompts_file = os.path.join(os.path.dirname(__file__), '../datasets/debate_prompts/prompts.json')
+        
+        if not os.path.exists(prompts_file):
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Prompts file not found"}
+            )
+        
+        with open(prompts_file, 'r', encoding='utf-8') as f:
+            prompts = json.load(f)
+        
+        return {"prompts": prompts}
+    except Exception as e:
+        logger.error(f"[ADMIN] Error loading debate prompts: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+@app.put("/api/admin/debate-prompts/{prompt_type}")
+async def update_debate_prompt(prompt_type: str, request: Request):
+    """
+    Update a specific debate prompt - saves directly to JSON file.
+    Simple CRUD endpoint with no validation (accepts any prompt_type).
+    """
+    try:
+        data = await request.json()
+        content = data.get("content", "")
+        
+        logger.info(f"[ADMIN] Updating debate prompt: {prompt_type} ({len(content)} chars)")
+        
+        # Get prompts file path
+        prompts_file = os.path.join(os.path.dirname(__file__), '../datasets/debate_prompts/prompts.json')
+        
+        # Load existing prompts
+        if os.path.exists(prompts_file):
+            with open(prompts_file, 'r', encoding='utf-8') as f:
+                prompts = json.load(f)
+        else:
+            prompts = {}
+        
+        # Update the specific prompt (no validation - just save it)
+        prompts[prompt_type] = content
+        
+        # Save back to file
+        with open(prompts_file, 'w', encoding='utf-8') as f:
+            json.dump(prompts, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"[ADMIN] Successfully saved debate prompt: {prompt_type}")
+        
+        return {
+            "success": True,
+            "message": f"Prompt {prompt_type} updated successfully"
+        }
+    except Exception as e:
+        logger.error(f"[ADMIN] Error updating debate prompt {prompt_type}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+@app.get("/api/admin/debate-temperatures")
+async def get_debate_temperatures():
+    """
+    Get temperature settings for all debate prompts.
+    Used by Admin Dashboard > Debate Prompt Management.
+    """
+    try:
+        temp_file = os.path.join(os.path.dirname(__file__), '../datasets/debate_prompts/temperatures.json')
+        
+        # Default temperatures
+        default_temperatures = {
+            'data_reasoning': 0.75,
+            'round1': 0.7,
+            'round2': 0.7,
+            'final': 0.7,
+            'comments': 0.8,
+            'reasoning': 0.75,
+            'reasoning_own': 0.75,
+            'insights': 0.85,
+            'round_summary': 0.7,
+            'voting': 0.7,
+            'closing': 0.7
+        }
+        
+        if os.path.exists(temp_file):
+            with open(temp_file, 'r', encoding='utf-8') as f:
+                temperatures = json.load(f)
+        else:
+            temperatures = default_temperatures
+        
+        return temperatures
+    except Exception as e:
+        logger.error(f"[ADMIN] Error loading debate temperatures: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+@app.put("/api/admin/debate-temperatures")
+async def update_debate_temperatures(request: Request):
+    """
+    Update temperature settings for debate prompts.
+    Saves to JSON file.
+    """
+    try:
+        data = await request.json()
+        temperatures = data.get("temperatures", {})
+        
+        if not temperatures:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Temperatures object cannot be empty"}
+            )
+        
+        # Validate temperature values
+        for key, value in temperatures.items():
+            if not isinstance(value, (int, float)):
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": f"Temperature for {key} must be a number"}
+                )
+            if value < 0 or value > 2:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": f"Temperature for {key} must be between 0 and 2"}
+                )
+        
+        temp_file = os.path.join(os.path.dirname(__file__), '../datasets/debate_prompts/temperatures.json')
+        
+        # Save to file
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            json.dump(temperatures, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"[ADMIN] Updated debate temperatures")
+        
+        return {
+            "success": True,
+            "message": "Temperatures updated successfully"
+        }
+    except Exception as e:
+        logger.error(f"[ADMIN] Error updating debate temperatures: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 
 
 # =============================================================================
