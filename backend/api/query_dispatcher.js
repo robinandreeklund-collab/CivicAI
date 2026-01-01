@@ -579,7 +579,7 @@ async function handleZeroCompareFlow(req, res) {
         // Call ONESEEK to perform MTA-16 analysis
         const mta16Result = await getOpenSeekResponse(mta16Prompt, {
           profileId: 'zero',
-          systemPrompt: 'Du är Zero, ONESEEK\'s transparensanalysator. Utför MTA-16 analys exakt enligt instruktionerna.',
+          systemPrompt: 'Du är Zero, ONESEEK:s transparensanalysator. Utför MTA-16 analys exakt enligt instruktionerna.',
           max_tokens: 1024, // Enough for detailed analysis
           temperature: 0.3, // Lower temperature for more consistent analysis
         });
