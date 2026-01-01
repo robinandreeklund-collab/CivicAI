@@ -284,9 +284,10 @@ function MTA16Panel({ response, expanded, onToggle }) {
               </div>
             ))}
           </div>
+          )}
           
           {/* Performance Metrics */}
-          {(metrics.responseTime > 0 || metrics.tokenEfficiency > 0) && (
+          {metrics && (metrics.responseTime > 0 || metrics.tokenEfficiency > 0) && (
             <div className="border-t border-[#1a1a1a] pt-3 flex gap-4">
               {metrics.responseTime > 0 && (
                 <MetricBadge 
