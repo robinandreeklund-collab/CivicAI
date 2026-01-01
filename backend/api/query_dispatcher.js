@@ -38,8 +38,134 @@ import {
   getChunkedSynthesisPrompt 
 } from '../services/comparePromptBuilder.js';
 import { compressResponsesForPrompt } from '../utils/responseCompressor.js';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const execFileAsync = promisify(execFile);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
+
+/**
+ * Execute Tavily search using Python ML service
+ * @param {string} query - Search query
+ * @returns {Promise<Object>} - Search results with answer and sources
+ */
+async function executeTavilySearch(query) {
+  try {
+    const pythonScript = path.join(__dirname, '../../ml_service/tavily_cli.py');
+    
+    // Call the Python script with the query as an argument
+    const { stdout, stderr } = await execFileAsync('python3', [
+      pythonScript,
+      '--query', query,
+      '--mode', 'search'
+    ], {
+      maxBuffer: 1024 * 1024 * 5, // 5MB buffer for large responses
+      timeout: 30000 // 30 second timeout
+    });
+    
+    if (stderr && stderr.trim()) {
+      console.warn(`⚠️  Tavily search warning: ${stderr.trim()}`);
+    }
+    
+    // Parse the JSON output from Python
+    const result = JSON.parse(stdout);
+    return result;
+  } catch (error) {
+    console.error(`❌ Tavily search error: ${error.message}`);
+    return {
+      answer: null,
+      sources: '',
+      raw_data: null,
+      language: 'sv',
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Let ONESEEK decide what Tavily searches to perform based on external AI responses
+ * @param {string} question - Original question
+ * @param {Array} externalResponses - Responses from external AIs
+ * @param {Array} mta16Analyses - MTA-16 analyses
+ * @returns {Promise<Array>} - List of search queries determined by ONESEEK
+ */
+async function determineSearchQueries(question, externalResponses, mta16Analyses) {
+  console.log('  🤔 Asking ONESEEK to determine necessary searches...');
+  
+  // Build prompt for ONESEEK to determine what to search
+  const responseSummary = externalResponses.map(r => 
+    `**${r.agent.toUpperCase()}:** ${r.response.substring(0, 300)}${r.response.length > 300 ? '...' : ''}`
+  ).join('\n\n');
+  
+  const searchDeterminationPrompt = `Du är Zero, ONESEEK:s transparensanalysator.
+
+FRÅGA: ${question}
+
+EXTERNA AI-SVAR:
+${responseSummary}
+
+MTA-16 ANALYSER:
+${mta16Analyses.map(a => `**${a.agent.toUpperCase()}:**\n${a.analysis.substring(0, 200)}...`).join('\n\n')}
+
+UPPGIFT:
+Baserat på frågan och de externa AI-svaren, avgör vilka Tavily-sökningar (max 3) som skulle ge mest värde för att:
+1. Verifiera fakta som nämns i svaren
+2. Fylla i saknade aspekter eller perspektiv
+3. Få aktuell data eller statistik som saknas
+4. Kontrollera motsägelser mellan modellerna
+
+För varje sökning, skriv exakt:
+Tavily-sökning: "<din sökfråga här>"
+
+Om inga sökningar behövs (svaren är tillräckliga och konsekventa), skriv endast:
+Inga Tavily-sökningar behövs.
+
+SÖKNINGAR:`;
+
+  try {
+    const result = await getOpenSeekResponse(searchDeterminationPrompt, {
+      profileId: 'zero',
+      systemPrompt: 'Du är Zero. Avgör vilka Tavily-sökningar som behövs. Var specifik och koncis.',
+      max_tokens: 512,
+      temperature: 0.4,
+    });
+    
+    if (!result.response) {
+      console.warn('  ⚠️  ONESEEK returned no response for search determination');
+      return [];
+    }
+    
+    console.log(`  📝 ONESEEK search determination response: ${result.response.substring(0, 200)}...`);
+    
+    // Extract search queries using regex patterns
+    const queries = [];
+    const patterns = [
+      /Tavily-sökning:\s*["\']([^"\']+)["\']/gi,
+      /Tavily-sökning:\s*([^\n]+)/gi,
+    ];
+    
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(result.response)) !== null) {
+        const query = match[1].trim();
+        if (query.length > 10 && !queries.includes(query)) {
+          queries.push(query);
+        }
+      }
+    }
+    
+    // Limit to 3 searches
+    return queries.slice(0, 3);
+  } catch (error) {
+    console.error('  ❌ Error determining search queries:', error.message);
+    return [];
+  }
+}
 
 /**
  * Sanitize AI response text to remove leaked system prompts, sources, and internal context
@@ -638,6 +764,59 @@ async function handleZeroCompareFlow(req, res) {
     
     console.log(`✅ MTA-16 analysis complete for ${mta16Analyses.length}/${externalResponses.length} responses`);
     
+    // Step 2.6: Determine and execute Tavily searches
+    console.log('\n🔍 Step 2.6: Determining and executing Tavily searches...');
+    let tavilyResults = [];
+    let tavilyResultsText = '';
+    
+    try {
+      // Let ONESEEK decide what to search
+      const searchQueries = await determineSearchQueries(question, externalResponses, mta16Analyses);
+      
+      if (searchQueries.length > 0) {
+        console.log(`  📋 ONESEEK determined ${searchQueries.length} search(es) needed:`);
+        searchQueries.forEach((q, i) => console.log(`     ${i + 1}. "${q}"`));
+        
+        // Execute searches in parallel
+        const searchPromises = searchQueries.map(async (query, idx) => {
+          console.log(`  🔍 Executing search ${idx + 1}: "${query}"`);
+          const result = await executeTavilySearch(query);
+          
+          if (result.answer) {
+            console.log(`  ✅ Search ${idx + 1} complete - found answer (${result.answer.length} chars)`);
+          } else if (result.error) {
+            console.log(`  ⚠️  Search ${idx + 1} failed: ${result.error}`);
+          } else {
+            console.log(`  ⚠️  Search ${idx + 1} returned no answer`);
+          }
+          
+          return {
+            query,
+            ...result
+          };
+        });
+        
+        tavilyResults = await Promise.all(searchPromises);
+        
+        // Format results for inclusion in prompt
+        tavilyResultsText = tavilyResults
+          .filter(r => r.answer)
+          .map((r, idx) => `**Sökning ${idx + 1}: "${r.query}"**\n\nSvar: ${r.answer}\n\nKällor:\n${r.sources}`)
+          .join('\n\n---\n\n');
+        
+        if (tavilyResultsText) {
+          console.log(`  ✅ Tavily searches complete - ${tavilyResults.filter(r => r.answer).length} successful`);
+        } else {
+          console.log(`  ℹ️  No successful Tavily results to include`);
+        }
+      } else {
+        console.log(`  ℹ️  ONESEEK determined no searches needed`);
+      }
+    } catch (error) {
+      console.error(`  ❌ Tavily search process error: ${error.message}`);
+      console.error(`     Stack: ${error.stack}`);
+    }
+    
     // Format MTA-16 analyses for the comparison prompt
     let mta16AnalysesText = '';
     if (mta16Analyses.length > 0) {
@@ -715,7 +894,8 @@ async function handleZeroCompareFlow(req, res) {
           question,
           compressionResult.compressed,
           mta16AnalysesText, // Add MTA-16 analyses
-          null // Firebase context - skip for now
+          null, // Firebase context - skip for now
+          tavilyResultsText // Add Tavily search results
         );
       }
       
@@ -797,6 +977,7 @@ async function handleZeroCompareFlow(req, res) {
         pipelineAnalysis: r.pipelineAnalysis, // Keep for backward compatibility
         mta16Analysis: r.mta16Analysis, // Add ONESEEK's MTA-16 analysis (full text, not truncated)
       })),
+      tavilyResults: tavilyResults.length > 0 ? tavilyResults : undefined, // Include Tavily search results
       compression: compressionMetadata,
       character: {
         id: character.id,

@@ -124,27 +124,31 @@ Du vet att alla andra AI:er har bias och begränsningar.
 När du får en fråga:
 1. Du har redan fått svar från stora AI:er (GPT, Grok, Gemini, DeepSeek)
 2. Du har också fått MTA-16 ANALYSER för varje svar (utförda av ONESEEK)
-3. Använd MTA-16 analyserna för att bedöma varje AI:s kvalitet på ALLA 16 dimensioner
-4. Identifiera helt opartiskt baserat på MTA-16:
+3. Du har TAVILY-SÖKRESULTAT med aktuell data och källor (om tillgängligt)
+4. Använd MTA-16 analyserna för att bedöma varje AI:s kvalitet på ALLA 16 dimensioner
+5. Använd Tavily-sökresultaten för att verifiera fakta och lägga till djup
+6. Identifiera helt opartiskt baserat på MTA-16:
    • Gemensamma fakta
    • Motsägelser
    • Bias (politisk, kulturell, kommersiell)
    • Hallucinationer
    • Källor som saknas
    • Vem som presterade bäst på varje MTA-16 dimension
-5. SKAPA DET OPTIMALA SVARET – ditt mål är att ta det bästa från varje AI och kombinera det till ett perfekt svar:
+7. SKAPA DET OPTIMALA SVARET – ditt mål är att ta det bästa från varje AI och kombinera det till ett perfekt svar:
    • Använd de mest korrekta fakta (högsta Faktisk noggrannhet)
    • Kombinera de bredaste perspektiven (högsta Entitetstäckning och Fullständighet)
    • Balansera objektivitet och läsbarhet (högsta Subjektivitet, Biasdetektering, Läsbarhet)
    • Inkludera källor och kontext (högsta Källattribuering och Kontextuell relevans)
+   • Använd Tavily-data för att verifiera och fördjupa
    • Skapa ett svar som skulle få HÖGSTA MÖJLIGA MTA-16 POÄNG på alla 16 dimensioner
-6. GÖR SVARET DETALJERAT OCH KOMPLETT:
+8. GÖR SVARET DETALJERAT OCH KOMPLETT:
    • Ge ett OMFATTANDE svar som täcker alla relevanta aspekter
    • Inkludera konkreta exempel, data och detaljer från AI:ernas bästa insikter
+   • Integrera aktuell data från Tavily-sökningar där det ger mervärde
    • Förklara sammanhang och nyanser där det behövs
    • Strukturera svaret tydligt med underrubriker om ämnet är komplext
    • Sikta på ett innehållsrikt, väl utvecklat svar – inte bara en kort sammanfattning
-7. Presentera tydligt och strukturerat – utan meta-kommentarer om själva jämförelseprocessen
+9. Presentera tydligt och strukturerat – utan meta-kommentarer om själva jämförelseprocessen
 
 Du är Zero – sanningens väktare.
 Svara på svenska – objektivt, tydligt och utan fluff.
@@ -161,27 +165,31 @@ MTA-16 ANALYSER (utförda av ONESEEK):
 
 {MTA16_ANALYSES}
 
+{TAVILY_RESULTS}
+
 ═══════════════════════════════════════════════════════════════
 
 FRÅGA: {question}
 
-Baserat på svaren OCH MTA-16 analyserna ovan:
+Baserat på svaren, MTA-16 analyserna OCH Tavily-sökresultaten ovan:
 
 1. ANALYSERA: Vilken AI presterade bäst på varje MTA-16 dimension?
 2. IDENTIFIERA: Gemensamma fakta, motsägelser, bias, hallucinationer
-3. SKAPA DET OPTIMALA SVARET: Kombinera det bästa från varje AI för att skapa ett svar som skulle få högsta möjliga MTA-16 poäng på alla 16 dimensioner:
-   - Högsta Faktisk noggrannhet (använd mest korrekta fakta)
-   - Högsta Fullständighet (täck alla aspekter)
+3. VERIFIERA: Använd Tavily-data för att bekräfta eller korrigera påståenden
+4. SKAPA DET OPTIMALA SVARET: Kombinera det bästa från varje AI för att skapa ett svar som skulle få högsta möjliga MTA-16 poäng på alla 16 dimensioner:
+   - Högsta Faktisk noggrannhet (använd mest korrekta fakta, verifierade med Tavily)
+   - Högsta Fullständighet (täck alla aspekter, inkludera Tavily-insikter)
    - Högsta Biasdetektering (helt opartisk)
-   - Högsta Källattribuering (referera källor)
+   - Högsta Källattribuering (referera källor från både AI:er och Tavily)
    - Högsta Kontextuell relevans (relevant och fokuserad)
    - Optimal balans på alla andra dimensioner
 
-Ditt svar ska vara BÄTTRE än någon enskild AI – det perfekta svaret på frågan baserat på alla AI:ers samlade kunskap och MTA-16 insikter.
+Ditt svar ska vara BÄTTRE än någon enskild AI – det perfekta svaret på frågan baserat på alla AI:ers samlade kunskap, MTA-16 insikter OCH aktuell data från Tavily.
 
 VIKTIGT: Ge ett DETALJERAT OCH KOMPLETT svar:
 • Täck alla relevanta aspekter av frågan grundligt
 • Inkludera konkreta exempel, data och detaljer från de bästa insikterna
+• Integrera relevant data från Tavily-sökningar naturligt i svaret
 • Förklara sammanhang och nyanser där det behövs för förståelse
 • Strukturera svaret tydligt (använd underrubriker för komplexa ämnen)
 • Ge ett innehållsrikt, väl utvecklat svar som maximerar värde för användaren
@@ -574,14 +582,27 @@ function buildSystemPromptFromCharacter(character, options = {}) {
  * @param {Object} firebaseContext - Optional Firebase context data
  * @returns {{systemPrompt: string, userPrompt: string, character: Object}}
  */
-export function buildComparePrompt(characterYamlPath, question, otherResponses, mta16Analyses = '', firebaseContext = null) {
+export function buildComparePrompt(characterYamlPath, question, otherResponses, mta16Analyses = '', firebaseContext = null, tavilyResults = '') {
   // Get the COMPLETE prompt from Admin Dashboard (or default)
   let fullPrompt = getCompareSystemPrompt();
   
+  // Format Tavily results section (only if we have results)
+  let tavilySection = '';
+  if (tavilyResults && tavilyResults.trim()) {
+    tavilySection = `
+═══════════════════════════════════════════════════════════════
+TAVILY-SÖKRESULTAT (Aktuell data och källor):
+═══════════════════════════════════════════════════════════════
+
+${tavilyResults}
+`;
+  }
+  
   // Replace placeholders with actual values
-  // The prompt from Admin Dashboard should contain {EXTERNAL_AI_RESPONSES}, {MTA16_ANALYSES}, and {question}
+  // The prompt from Admin Dashboard should contain {EXTERNAL_AI_RESPONSES}, {MTA16_ANALYSES}, {TAVILY_RESULTS}, and {question}
   fullPrompt = fullPrompt.replace(/\{EXTERNAL_AI_RESPONSES\}/g, otherResponses || '(Inga externa svar tillgängliga)');
   fullPrompt = fullPrompt.replace(/\{MTA16_ANALYSES\}/g, mta16Analyses || '(Ingen MTA-16 analys tillgänglig än)');
+  fullPrompt = fullPrompt.replace(/\{TAVILY_RESULTS\}/g, tavilySection);
   fullPrompt = fullPrompt.replace(/\{question\}/g, question);
   
   // Add Firebase context if available (prepend to prompt)
