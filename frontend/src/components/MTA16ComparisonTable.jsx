@@ -71,21 +71,41 @@ const MTA16_CATEGORIES = {
 
 /**
  * Parse MTA-16 score from text analysis
+ * Handles both numeric (85%) and text (hög/medium/låg) formats
  */
-function parseScore(text, dimensionKey) {
+function parseScore(text, dimensionLabel, dimensionLabelEn) {
   if (!text) return null;
   
-  // Look for patterns like "Faktisk noggrannhet: 85%" or "Factual Accuracy: 85"
-  const patterns = [
-    new RegExp(`${dimensionKey}[:\\s]+([0-9]+)%?`, 'i'),
-    new RegExp(`([0-9]+)%?[\\s]*-[\\s]*${dimensionKey}`, 'i')
-  ];
+  // Try to find the dimension in the text using both Swedish and English labels
+  const labels = [dimensionLabel, dimensionLabelEn].filter(Boolean);
   
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) {
-      return parseInt(match[1], 10);
+  for (const label of labels) {
+    // Pattern 1: "Label: 85%" or "Label: 85"
+    const numericPattern = new RegExp(`${label}[:\\s]+([0-9]+)%?`, 'i');
+    const numericMatch = text.match(numericPattern);
+    if (numericMatch) {
+      return parseInt(numericMatch[1], 10);
     }
+    
+    // Pattern 2: "Label: hög/medium/låg" or "Label: high/medium/low"
+    const textPattern = new RegExp(`${label}[:\\s]+(hög|medium|låg|high|low)`, 'i');
+    const textMatch = text.match(textPattern);
+    if (textMatch) {
+      const value = textMatch[1].toLowerCase();
+      // Convert text to numeric score
+      if (value === 'hög' || value === 'high') return 85;
+      if (value === 'medium') return 60;
+      if (value === 'låg' || value === 'low') return 35;
+    }
+  }
+  
+  // Pattern 3: Look for overall MTA-16 score at the beginning
+  const overallPattern = /MTA-16 Poäng[:\s]+([0-9]+)%?/i;
+  const overallMatch = text.match(overallPattern);
+  if (overallMatch) {
+    // If we found the overall score but not the specific dimension,
+    // we could use this as a fallback, but return null to show N/A
+    // since we don't want to show the same score for all dimensions
   }
   
   return null;
@@ -195,7 +215,7 @@ function CategoryTable({ category, externalResponses, expanded, onToggle, whiteM
                       {dimension.label}
                     </td>
                     {externalResponses.map((resp, respIdx) => {
-                      const score = parseScore(resp.mta16Analysis, dimension.labelEn);
+                      const score = parseScore(resp.mta16Analysis, dimension.label, dimension.labelEn);
                       return (
                         <td key={respIdx} className="px-3 py-2 text-center">
                           <ScoreBadge score={score} />
@@ -237,6 +257,13 @@ export default function MTA16ComparisonTable({ externalResponses, whiteMode = fa
   
   // Filter responses that have MTA-16 analysis
   const responsesWithMTA16 = externalResponses.filter(r => r.mta16Analysis);
+  
+  // Debug logging
+  console.log('[MTA16ComparisonTable] Responses with MTA-16:', responsesWithMTA16.length);
+  responsesWithMTA16.forEach((resp, idx) => {
+    console.log(`[MTA16ComparisonTable] ${resp.agent} MTA-16 analysis preview:`, 
+      resp.mta16Analysis?.substring(0, 200) + '...');
+  });
   
   if (responsesWithMTA16.length === 0) {
     return (
