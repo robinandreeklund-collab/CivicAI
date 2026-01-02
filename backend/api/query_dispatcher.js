@@ -98,8 +98,16 @@ async function determineSearchQueries(question, externalResponses, mta16Analyses
   console.log('  🤔 Asking ONESEEK to determine necessary searches...');
   
   // Build prompt for ONESEEK to determine what to search
+  // Truncate to keep prompt under character limits
+  const MAX_RESPONSE_PREVIEW = 200;
+  const MAX_ANALYSIS_PREVIEW = 150;
+  
   const responseSummary = externalResponses.map(r => 
-    `**${r.agent.toUpperCase()}:** ${r.response.substring(0, 300)}${r.response.length > 300 ? '...' : ''}`
+    `**${r.agent.toUpperCase()}:** ${r.response.substring(0, MAX_RESPONSE_PREVIEW)}${r.response.length > MAX_RESPONSE_PREVIEW ? '...' : ''}`
+  ).join('\n\n');
+  
+  const analysesSummary = mta16Analyses.map(a => 
+    `**${a.agent.toUpperCase()}:** ${a.analysis.substring(0, MAX_ANALYSIS_PREVIEW)}${a.analysis.length > MAX_ANALYSIS_PREVIEW ? '...' : ''}`
   ).join('\n\n');
   
   const searchDeterminationPrompt = `Du är Zero, ONESEEK:s transparensanalysator.
@@ -110,7 +118,7 @@ EXTERNA AI-SVAR:
 ${responseSummary}
 
 MTA-16 ANALYSER:
-${mta16Analyses.map(a => `**${a.agent.toUpperCase()}:**\n${a.analysis.substring(0, 200)}...`).join('\n\n')}
+${analysesSummary}
 
 UPPGIFT:
 Baserat på frågan och de externa AI-svaren, avgör vilka Tavily-sökningar (max 3) som skulle ge mest värde för att:
@@ -127,8 +135,18 @@ Inga Tavily-sökningar behövs.
 
 SÖKNINGAR:`;
 
+  // Ensure the prompt doesn't exceed safe limits (keep under 3000 chars for safety)
+  const MAX_PROMPT_LENGTH = 3000;
+  let finalPrompt = searchDeterminationPrompt;
+  if (finalPrompt.length > MAX_PROMPT_LENGTH) {
+    console.log(`  ⚠️  Prompt too long (${finalPrompt.length} chars), truncating...`);
+    finalPrompt = finalPrompt.substring(0, MAX_PROMPT_LENGTH) + '\n\nSÖKNINGAR:';
+  }
+  
+  console.log(`  📏 Search determination prompt length: ${finalPrompt.length} chars`);
+
   try {
-    const result = await getOpenSeekResponse(searchDeterminationPrompt, {
+    const result = await getOpenSeekResponse(finalPrompt, {
       profileId: 'zero',
       systemPrompt: 'Du är Zero. Avgör vilka Tavily-sökningar som behövs. Var specifik och koncis.',
       max_tokens: 512,
