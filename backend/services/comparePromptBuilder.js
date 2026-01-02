@@ -586,22 +586,41 @@ export function buildComparePrompt(characterYamlPath, question, otherResponses, 
   // Get the COMPLETE prompt from Admin Dashboard (or default)
   let fullPrompt = getCompareSystemPrompt();
   
-  // Format Tavily results section (only if we have results)
+  // CRITICAL: OpenSeek API has 10K character limit
+  // We need to aggressively truncate content to stay within limits
+  const MAX_TOTAL_PROMPT_LENGTH = 9000; // Leave 1K margin for safety
+  
+  // Truncate Tavily results if too long
   let tavilySection = '';
   if (tavilyResults && tavilyResults.trim()) {
+    const MAX_TAVILY_LENGTH = 1500; // Limit Tavily to 1.5K chars
+    let truncatedTavily = tavilyResults;
+    if (tavilyResults.length > MAX_TAVILY_LENGTH) {
+      truncatedTavily = tavilyResults.substring(0, MAX_TAVILY_LENGTH) + '\n\n[... ytterligare Tavily-resultat trunkerade för att hålla prompt-längden ...]';
+      console.log(`  ⚠️  Tavily results truncated from ${tavilyResults.length} to ${MAX_TAVILY_LENGTH} chars`);
+    }
+    
     tavilySection = `
 ═══════════════════════════════════════════════════════════════
 TAVILY-SÖKRESULTAT (Aktuell data och källor):
 ═══════════════════════════════════════════════════════════════
 
-${tavilyResults}
+${truncatedTavily}
 `;
+  }
+  
+  // Truncate MTA-16 analyses if too long
+  const MAX_MTA16_LENGTH = 2000; // Limit MTA-16 to 2K chars
+  let truncatedMTA16 = mta16Analyses || '(Ingen MTA-16 analys tillgänglig än)';
+  if (mta16Analyses && mta16Analyses.length > MAX_MTA16_LENGTH) {
+    truncatedMTA16 = mta16Analyses.substring(0, MAX_MTA16_LENGTH) + '\n\n[... ytterligare MTA-16 analyser trunkerade för att hålla prompt-längden ...]';
+    console.log(`  ⚠️  MTA-16 analyses truncated from ${mta16Analyses.length} to ${MAX_MTA16_LENGTH} chars`);
   }
   
   // Replace placeholders with actual values
   // The prompt from Admin Dashboard should contain {EXTERNAL_AI_RESPONSES}, {MTA16_ANALYSES}, {TAVILY_RESULTS}, and {question}
   fullPrompt = fullPrompt.replace(/\{EXTERNAL_AI_RESPONSES\}/g, otherResponses || '(Inga externa svar tillgängliga)');
-  fullPrompt = fullPrompt.replace(/\{MTA16_ANALYSES\}/g, mta16Analyses || '(Ingen MTA-16 analys tillgänglig än)');
+  fullPrompt = fullPrompt.replace(/\{MTA16_ANALYSES\}/g, truncatedMTA16);
   fullPrompt = fullPrompt.replace(/\{TAVILY_RESULTS\}/g, tavilySection);
   fullPrompt = fullPrompt.replace(/\{question\}/g, question);
   
@@ -609,6 +628,14 @@ ${tavilyResults}
   if (firebaseContext && firebaseContext.previousQuestions && firebaseContext.previousQuestions.length > 0) {
     fullPrompt = `[Tidigare frågor i samtalet: ${firebaseContext.previousQuestions.slice(-3).join(', ')}]\n\n${fullPrompt}`;
   }
+  
+  // Final safety check: ensure total prompt doesn't exceed MAX_TOTAL_PROMPT_LENGTH
+  if (fullPrompt.length > MAX_TOTAL_PROMPT_LENGTH) {
+    console.log(`  ⚠️  Final prompt too long (${fullPrompt.length} chars), truncating to ${MAX_TOTAL_PROMPT_LENGTH}...`);
+    fullPrompt = fullPrompt.substring(0, MAX_TOTAL_PROMPT_LENGTH) + '\n\n[... prompt trunkerad för att hålla inom API-gränser. Analysera baserat på tillgänglig information ...]';
+  }
+  
+  console.log(`  ✅ Final compare prompt length: ${fullPrompt.length} chars`);
   
   // Return Zero compare character info (no YAML involved)
   const character = {
