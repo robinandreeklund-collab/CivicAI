@@ -98,9 +98,9 @@ async function determineSearchQueries(question, externalResponses, mta16Analyses
   console.log('  🤔 Asking ONESEEK to determine necessary searches...');
   
   // Build prompt for ONESEEK to determine what to search
-  // Truncate to keep prompt under character limits
-  const MAX_RESPONSE_PREVIEW = 200;
-  const MAX_ANALYSIS_PREVIEW = 150;
+  // With 20K API limit, we can afford more detailed previews
+  const MAX_RESPONSE_PREVIEW = 500;  // Increased from 200
+  const MAX_ANALYSIS_PREVIEW = 300;  // Increased from 150
   
   const responseSummary = externalResponses.map(r => 
     `**${r.agent.toUpperCase()}:** ${r.response.substring(0, MAX_RESPONSE_PREVIEW)}${r.response.length > MAX_RESPONSE_PREVIEW ? '...' : ''}`
@@ -135,11 +135,11 @@ Inga Tavily-sökningar behövs.
 
 SÖKNINGAR:`;
 
-  // Ensure the prompt doesn't exceed safe limits (keep under 3000 chars for safety)
-  const MAX_PROMPT_LENGTH = 3000;
+  // With 20K API limit, we can afford much longer prompts - only truncate if truly excessive
+  const MAX_PROMPT_LENGTH = 18000;  // Increased from 3000
   let finalPrompt = searchDeterminationPrompt;
   if (finalPrompt.length > MAX_PROMPT_LENGTH) {
-    console.log(`  ⚠️  Prompt too long (${finalPrompt.length} chars), truncating...`);
+    console.log(`  ⚠️  Prompt exceeds 18K chars (${finalPrompt.length}), truncating...`);
     finalPrompt = finalPrompt.substring(0, MAX_PROMPT_LENGTH) + '\n\nSÖKNINGAR:';
   }
   
@@ -715,6 +715,7 @@ async function handleZeroCompareFlow(req, res) {
         
         // Truncate response if too long to stay within OpenSeek's 20K char limit
         // The template + question + agent takes ~6000 chars, so we limit response to 8000
+        // This gives us ~14K total, well within the 20K limit
         const MAX_RESPONSE_LENGTH = 8000;
         const TRUNCATION_MARKER = '\n\n[... response truncated for analysis ...]\n\n';
         const KEEP_END_CHARS = 100; // Keep end for conclusions/context
