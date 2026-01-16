@@ -1,0 +1,24 @@
+# vLLM Server Requirements for OneSeek Inference Server
+# High-performance alternative to llama-cpp-python using vLLM
+
+# Core FastAPI and server (same as main requirements)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic==2.5.0
+
+# Rate limiting
+slowapi==0.1.9
+
+# vLLM - High-performance inference engine
+# Version 0.6.0+ includes GGUF support
+vllm>=0.6.0
+
+# PyTorch (should already be installed with CUDA 12.8 support for RTX 5090)
+# If not installed: pip install torch --index-url https://download.pytorch.org/whl/nightly/cu128
+
+# Utilities
+python-dotenv>=1.0.0
+
+# Note: This is a minimal requirements file for vLLM server only.
+# For full ONESEEK features (Intent Engine, Tavily, etc.), also install
+# the dependencies from requirements.txt
