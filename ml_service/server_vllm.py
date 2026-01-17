@@ -38,19 +38,29 @@ import argparse
 from typing import Optional, List, Dict, Any, AsyncGenerator
 import torch
 
-# vLLM imports
+# vLLM imports - compatible with vLLM 0.6+ through 0.13+
 try:
     from vllm import LLM, SamplingParams
-    from vllm.engine.arg_utils import AsyncEngineArgs
-    from vllm.engine.async_llm_engine import AsyncLLMEngine
+    # Import path changed in newer vLLM versions
+    try:
+        from vllm.engine.arg_utils import AsyncEngineArgs
+    except ImportError:
+        # For vLLM 0.13+
+        from vllm import AsyncEngineArgs
+    try:
+        from vllm.engine.async_llm_engine import AsyncLLMEngine
+    except ImportError:
+        # For vLLM 0.13+
+        from vllm import AsyncLLMEngine
     VLLM_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     VLLM_AVAILABLE = False
     LLM = None
     SamplingParams = None
     AsyncEngineArgs = None
     AsyncLLMEngine = None
-    print("❌ vLLM not installed. Install with: pip install vllm>=0.6.0")
+    print(f"❌ vLLM not installed or import failed: {e}")
+    print("Install with: pip install vllm>=0.6.0")
     sys.exit(1)
 
 # Setup logging

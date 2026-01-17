@@ -283,6 +283,26 @@ python server_vllm.py --max-model-len 4096
 
 The first request is slower due to CUDA graph compilation. This is normal and subsequent requests will be much faster.
 
+### "vLLM not installed" Error Despite Installation
+
+If you get "❌ vLLM not installed" error but `pip show vllm` shows it's installed:
+
+**Cause**: Python/pip version mismatch or vLLM import path changed in newer versions.
+
+**Solution**:
+```powershell
+# Ensure you're using the same Python for pip and running
+python -m pip install --upgrade vllm>=0.6.0
+
+# Verify installation
+python -c "import vllm; print('vLLM version:', vllm.__version__)"
+
+# Run server with same Python
+python ml_service/server_vllm.py
+```
+
+**For vLLM 0.13+**: The import paths have changed. The server automatically handles both old and new import paths.
+
 ### GGUF Not Supported Error
 
 Ensure you have vLLM >= 0.6.0:
