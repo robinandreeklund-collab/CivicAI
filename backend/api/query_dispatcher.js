@@ -50,6 +50,15 @@ const __dirname = path.dirname(__filename);
 const router = express.Router();
 
 /**
+ * Get the correct Python command for the platform
+ * @returns {string} Python command ('python' or 'python3')
+ */
+function getPythonCommand() {
+  // On Windows, use 'python', on Unix-like systems, prefer 'python3'
+  return process.platform === 'win32' ? 'python' : 'python3';
+}
+
+/**
  * Execute Tavily search using Python ML service
  * @param {string} query - Search query
  * @returns {Promise<Object>} - Search results with answer and sources
@@ -57,9 +66,10 @@ const router = express.Router();
 async function executeTavilySearch(query) {
   try {
     const pythonScript = path.join(__dirname, '../../ml_service/tavily_cli.py');
+    const pythonCmd = getPythonCommand();
     
     // Call the Python script with the query as an argument
-    const { stdout, stderr } = await execFileAsync('python3', [
+    const { stdout, stderr } = await execFileAsync(pythonCmd, [
       pythonScript,
       '--query', query,
       '--mode', 'search'
