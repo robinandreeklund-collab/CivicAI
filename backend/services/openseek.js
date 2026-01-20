@@ -193,6 +193,33 @@ const SIMULATED_RESPONSE_KEYWORDS = {
 function getSimulatedResponse(question) {
   const questionLower = question.toLowerCase();
   
+  // Check if this is an MTA-16 analysis request
+  if (questionLower.includes('mta-16') || questionLower.includes('transparensanalys')) {
+    return `**MTA-16 Poäng:** 75%
+
+**Styrkor:**
+- Tydlig och strukturerad presentation
+- Balanserad analys utan uppenbar bias
+- God läsbarhet och koherens
+
+**Svagheter:**
+- Begränsad källattribuering
+- Svårt att verifiera faktisk noggrannhet
+- Relativt generellt innehåll
+
+**Dimensioner (sammanfattning):**
+- Faktisk noggrannhet: medium
+- Bias: låg
+- Toxicitet: låg
+- Källattribuering: medium
+- Fullständighet: medium
+- Ideologisk balans: hög
+
+**Sammanfattning:** Svaret visar god kvalitet med balanserad presentation och låg bias, men kunde förbättras med mer specifika källor och djupare analys.
+
+*Obs: Detta är ett simulerat MTA-16 svar. ONESEEK-7B-Zero är inte ansluten.*`;
+  }
+  
   const isWeatherQuestion = SIMULATED_RESPONSE_KEYWORDS.weather.some(kw => questionLower.includes(kw));
   const isPoliticsQuestion = SIMULATED_RESPONSE_KEYWORDS.politics.some(kw => questionLower.includes(kw));
   

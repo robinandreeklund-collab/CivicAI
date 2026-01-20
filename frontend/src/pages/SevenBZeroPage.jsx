@@ -9,6 +9,7 @@ import { handleFollowUpAction } from '../services/chat';
 import DebateRoundDisplay from '../components/DebateRoundDisplay';
 import Tankekedja from "../components/Tankekedja";
 import MTA16Analysis from "../components/MTA16Analysis";
+import MTA16ComparisonTable from "../components/MTA16ComparisonTable";
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -1481,18 +1482,18 @@ export default function SevenBZeroPage() {
         // Track external responses collection
         addThinkingEvent('external_collected', `Mottog ${data.externalResponses?.length || 0} externa svar`);
         
-        // Store external responses for display (with pipeline analysis)
+        // Store external responses for display (with MTA-16 analysis)
         if (data.externalResponses) {
           setExternalResponses(data.externalResponses);
           
           // Log MTA-16 analysis availability
-          const withAnalysis = data.externalResponses.filter(r => r.pipelineAnalysis).length;
-          console.log(`[7B-Zero Compare] ${withAnalysis}/${data.externalResponses.length} responses have pipeline analysis`);
+          const withMTA16 = data.externalResponses.filter(r => r.mta16Analysis).length;
+          console.log(`[7B-Zero Compare] ${withMTA16}/${data.externalResponses.length} responses have ONESEEK MTA-16 analysis`);
           
-          if (withAnalysis > 0) {
-            addThinkingEvent('mta16_available', `MTA-16 analys tillgänglig för ${withAnalysis} av ${data.externalResponses.length} svar`);
+          if (withMTA16 > 0) {
+            addThinkingEvent('mta16_available', `MTA-16 analys tillgänglig för ${withMTA16} av ${data.externalResponses.length} svar`);
           } else {
-            addThinkingEvent('mta16_unavailable', 'MTA-16 analys kunde inte genereras (pipeline-data saknas)');
+            addThinkingEvent('mta16_unavailable', 'MTA-16 analys kunde inte genereras (ONESEEK-analys saknas)');
           }
         }
         
@@ -1514,6 +1515,7 @@ export default function SevenBZeroPage() {
                   version: data.zero?.model || 'OpenSeek-7B-Zero',
                   compareMode: true,
                   externalCount: data.externalResponses?.length || 0,
+                  externalResponses: data.externalResponses || [], // Include external responses with MTA-16 data
                   compression: data.compression,
                   thinkingChain: compareThinkingEvents, // Attach thinking events
                 }
@@ -3616,6 +3618,16 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
+                  {/* MTA-16 Comparison Table - Show in compare mode after ONESEEK's answer */}
+                  {!msg.debateMode && !msg.isTyping && msg.compareMode && msg.externalResponses && msg.externalResponses.length > 0 && (
+                    <div className="mt-6">
+                      <MTA16ComparisonTable 
+                        externalResponses={msg.externalResponses} 
+                        whiteMode={whiteMode}
+                      />
+                    </div>
+                  )}
+                  
                   {/* Live Thinking Step - Show current thinking while processing */}
                   {msg.isTyping && msg.currentThinkingStep && (
                     <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-lg ${
@@ -4050,7 +4062,7 @@ export default function SevenBZeroPage() {
                       <span className={`text-[9px] uppercase tracking-wider ${
                         whiteMode ? 'text-[#999]' : 'text-[#666]'
                       }`}>
-                        ✓ Pipeline-analys tillgänglig
+                        ✓ ONESEEK MTA-16 tillgänglig
                       </span>
                     </div>
                   )}

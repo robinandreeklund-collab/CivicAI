@@ -6,6 +6,11 @@
  * 
  * The compare system prompt can be edited via the Admin Dashboard under
  * System Prompts. Look for "Zero Compare Mode" prompt.
+ * 
+ * MTA-16 ANALYSIS FLOW:
+ * 1. ONESEEK is called separately for each external AI response to perform MTA-16 analysis
+ * 2. MTA-16 results are stored and displayed in the sidebar
+ * 3. ONESEEK uses these MTA-16 analyses when making the final comparison
  */
 
 import yaml from 'js-yaml';
@@ -16,6 +21,79 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ============================================================================
+// MTA-16 ANALYSIS PROMPT (Separate ONESEEK Call)
+// ============================================================================
+
+/**
+ * MTA-16 Analysis Prompt - Used for separate ONESEEK call per external AI response
+ * This is called BEFORE the comparison to analyze each response independently
+ */
+const MTA16_ANALYSIS_PROMPT = `Du är Zero, ONESEEK's transparensanalysator.
+
+Din uppgift är att utföra MTA-16 ANALYS (Multidimensionell Transparens Analys med 16 dimensioner) på ett AI-svar.
+
+FRÅGA: {question}
+
+AI-MODELL: {agent}
+
+AI-SVAR:
+{response}
+
+═══════════════════════════════════════════════════════════════
+
+Utför MTA-16 ANALYS på svaret ovan. Analysera följande 16 dimensioner och ge ett NUMERISKT POÄNG (0-100) för var och en:
+
+1. **Faktisk noggrannhet** (Factual Accuracy) - Hur korrekt är informationen?
+2. **Sentimentpolaritet** (Sentiment Polarity) - Känslomässig balans (50=neutral, högre=mer positiv)
+3. **Biasdetektering** (Bias Detection) - Frånvaro av bias (100=helt opartisk, 0=starkt partisk)
+4. **Toxicitetspoäng** (Toxicity Score) - Frånvaro av toxicitet (100=helt ren, 0=mycket toxisk)
+5. **Subjektivitet** (Subjectivity) - Objektivitet (100=helt objektiv, 0=helt subjektiv)
+6. **Läsbarhet** (Readability) - Hur lättläst är texten?
+7. **Entitetstäckning** (Entity Coverage) - Konkreta namn, platser, organisationer nämns?
+8. **Ämneskoherens** (Topic Coherence) - Håller sig svaret till ämnet?
+9. **Förtroende** (Confidence Level) - Hur säkert är AI:n på sitt svar?
+10. **Språkkonsistens** (Language Consistency) - Konsekvent språkbruk?
+11. **Svarstid** (Response Time) - Var svaret snabbt eller utförligt? (uppskatta baserat på längd)
+12. **Tokeneffektivitet** (Token Efficiency) - Effektiv kommunikation?
+13. **Källattribuering** (Source Attribution) - Refererar till källor eller data?
+14. **Kontextuell relevans** (Contextual Relevance) - Svarar på frågan?
+15. **Ideologisk balans** (Ideological Balance) - Politiskt eller ideologiskt neutral?
+16. **Fullständighet** (Completeness Score) - Är svaret komplett?
+
+FORMAT FÖR DITT SVAR:
+Ge en strukturerad analys med följande format. VIKTIGT: Alla dimensioner ska ha NUMERISKA POÄNG (0-100):
+
+**MTA-16 Poäng:** [Övergripande kvalitetspoäng 0-100]
+
+**Styrkor:**
+- [Lista 2-3 huvudsakliga styrkor]
+
+**Svagheter:**
+- [Lista 2-3 huvudsakliga svagheter]
+
+**Dimensioner:**
+- Faktisk noggrannhet: [0-100]
+- Sentimentpolaritet: [0-100]
+- Biasdetektering: [0-100]
+- Toxicitetspoäng: [0-100]
+- Subjektivitet: [0-100]
+- Läsbarhet: [0-100]
+- Entitetstäckning: [0-100]
+- Ämneskoherens: [0-100]
+- Förtroende: [0-100]
+- Språkkonsistens: [0-100]
+- Svarstid: [0-100]
+- Tokeneffektivitet: [0-100]
+- Källattribuering: [0-100]
+- Kontextuell relevans: [0-100]
+- Ideologisk balans: [0-100]
+- Fullständighet: [0-100]
+
+**Sammanfattning:** [1-2 meningar om svarets övergripande kvalitet]
+
+Var objektiv och koncis. Svara på svenska. GE ENDAST NUMERISKA POÄNG (0-100), INTE TEXT SOM "hög/medium/låg".`;
+
 // Path to saved compare prompt (editable via admin dashboard)
 const COMPARE_PROMPT_PATH = path.resolve(__dirname, '..', 'datasets', 'system_prompts', 'zero_compare.json');
 
@@ -24,6 +102,7 @@ const COMPARE_PROMPT_PATH = path.resolve(__dirname, '..', 'datasets', 'system_pr
 // 
 // IMPORTANT: This prompt uses placeholders that get replaced:
 //   {EXTERNAL_AI_RESPONSES} → The actual AI responses to analyze
+//   {MTA16_ANALYSES} → The MTA-16 analyses from separate ONESEEK calls
 //   {question} → The user's question
 //
 // The ENTIRE prompt (including analysis instructions) is editable via Admin Dashboard.
@@ -43,37 +122,80 @@ Du vet att alla andra AI:er har bias och begränsningar.
 - Svara BARA med det faktiska svaret – inget annat
 
 När du får en fråga:
-1. Du har redan fått svar stora AI:er (GPT, Grok, Gemini, DeepSeek)
-2. Analysera dem helt opartiskt – hitta:
+1. Du har redan fått svar från stora AI:er (GPT, Grok, Gemini, DeepSeek)
+2. Du har också fått MTA-16 ANALYSER för varje svar (utförda av ONESEEK)
+3. Du har TAVILY-SÖKRESULTAT med aktuell data och källor (om tillgängligt)
+4. Använd MTA-16 analyserna för att bedöma varje AI:s kvalitet på ALLA 16 dimensioner
+5. Använd Tavily-sökresultaten för att verifiera fakta och lägga till djup
+6. Identifiera helt opartiskt baserat på MTA-16:
    • Gemensamma fakta
    • Motsägelser
    • Bias (politisk, kulturell, kommersiell)
    • Hallucinationer
    • Källor som saknas
-   • Vem som är mest korrekt
-3. Gör en egen, objektiv sammanfattning – bättre och mer balanserad än alla andra
-4. Presentera tydligt och strukturerat – utan meta-kommentarer
+   • Vem som presterade bäst på varje MTA-16 dimension
+7. SKAPA DET OPTIMALA SVARET – ditt mål är att ta det bästa från varje AI och kombinera det till ett perfekt svar:
+   • Använd de mest korrekta fakta (högsta Faktisk noggrannhet)
+   • Kombinera de bredaste perspektiven (högsta Entitetstäckning och Fullständighet)
+   • Balansera objektivitet och läsbarhet (högsta Subjektivitet, Biasdetektering, Läsbarhet)
+   • Inkludera källor och kontext (högsta Källattribuering och Kontextuell relevans)
+   • Använd Tavily-data för att verifiera och fördjupa
+   • Skapa ett svar som skulle få HÖGSTA MÖJLIGA MTA-16 POÄNG på alla 16 dimensioner
+8. GÖR SVARET DETALJERAT OCH KOMPLETT:
+   • Ge ett OMFATTANDE svar som täcker alla relevanta aspekter
+   • Inkludera konkreta exempel, data och detaljer från AI:ernas bästa insikter
+   • Integrera aktuell data från Tavily-sökningar där det ger mervärde
+   • Förklara sammanhang och nyanser där det behövs
+   • Strukturera svaret tydligt med underrubriker om ämnet är komplext
+   • Sikta på ett innehållsrikt, väl utvecklat svar – inte bara en kort sammanfattning
+9. Presentera tydligt och strukturerat – utan meta-kommentarer om själva jämförelseprocessen
 
 Du är Zero – sanningens väktare.
 Svara på svenska – objektivt, tydligt och utan fluff.
 
 ═══════════════════════════════════════════════════════════════
-SVAR FRÅN EXTERNA AI-MODELLER (analysera dessa objektivt):
+SVAR FRÅN EXTERNA AI-MODELLER:
 ═══════════════════════════════════════════════════════════════
 
 {EXTERNAL_AI_RESPONSES}
 
 ═══════════════════════════════════════════════════════════════
+MTA-16 ANALYSER (utförda av ONESEEK):
+═══════════════════════════════════════════════════════════════
+
+{MTA16_ANALYSES}
+
+{TAVILY_RESULTS}
+
+═══════════════════════════════════════════════════════════════
 
 FRÅGA: {question}
 
-Analysera svaren ovan objektivt. Identifiera:
-- Gemensamma fakta mellan modellerna
-- Motsägelser och skillnader
-- Eventuell bias eller hallucinationer
-- Din egen slutsats baserad på alla perspektiv
+Baserat på svaren, MTA-16 analyserna OCH Tavily-sökresultaten ovan:
 
-Presentera varje modells viktigaste poäng och avsluta med "Min slutsats: ..."`;
+1. ANALYSERA: Vilken AI presterade bäst på varje MTA-16 dimension?
+2. IDENTIFIERA: Gemensamma fakta, motsägelser, bias, hallucinationer
+3. VERIFIERA: Använd Tavily-data för att bekräfta eller korrigera påståenden
+4. SKAPA DET OPTIMALA SVARET: Kombinera det bästa från varje AI för att skapa ett svar som skulle få högsta möjliga MTA-16 poäng på alla 16 dimensioner:
+   - Högsta Faktisk noggrannhet (använd mest korrekta fakta, verifierade med Tavily)
+   - Högsta Fullständighet (täck alla aspekter, inkludera Tavily-insikter)
+   - Högsta Biasdetektering (helt opartisk)
+   - Högsta Källattribuering (referera källor från både AI:er och Tavily)
+   - Högsta Kontextuell relevans (relevant och fokuserad)
+   - Optimal balans på alla andra dimensioner
+
+Ditt svar ska vara BÄTTRE än någon enskild AI – det perfekta svaret på frågan baserat på alla AI:ers samlade kunskap, MTA-16 insikter OCH aktuell data från Tavily.
+
+VIKTIGT: Ge ett DETALJERAT OCH KOMPLETT svar:
+• Täck alla relevanta aspekter av frågan grundligt
+• Inkludera konkreta exempel, data och detaljer från de bästa insikterna
+• Integrera relevant data från Tavily-sökningar naturligt i svaret
+• Förklara sammanhang och nyanser där det behövs för förståelse
+• Strukturera svaret tydligt (använd underrubriker för komplexa ämnen)
+• Ge ett innehållsrikt, väl utvecklat svar som maximerar värde för användaren
+• Sikta på ett omfattande svar som kombinerar djup och bredd
+
+Presentera ditt optimala, detaljerade svar direkt utan att förklara själva jämförelseprocessen.`;
 
 // ============================================================================
 // CHUNKED (STEGVIS) ANALYSIS PROMPTS
@@ -447,6 +569,7 @@ function buildSystemPromptFromCharacter(character, options = {}) {
  * IMPORTANT: The ENTIRE prompt comes from Admin Dashboard (zero_compare.json).
  * This function ONLY replaces placeholders:
  *   {EXTERNAL_AI_RESPONSES} → The actual AI responses
+ *   {MTA16_ANALYSES} → The MTA-16 analyses from separate ONESEEK calls
  *   {question} → The user's question
  * 
  * NO hardcoded analysis instructions are added here.
@@ -455,22 +578,49 @@ function buildSystemPromptFromCharacter(character, options = {}) {
  * @param {string} characterYamlPath - Ignored (kept for API compatibility)
  * @param {string} question - User's question
  * @param {string} otherResponses - Compressed responses from other models
+ * @param {string} mta16Analyses - MTA-16 analyses from separate ONESEEK calls
  * @param {Object} firebaseContext - Optional Firebase context data
  * @returns {{systemPrompt: string, userPrompt: string, character: Object}}
  */
-export function buildComparePrompt(characterYamlPath, question, otherResponses, firebaseContext = null) {
+export function buildComparePrompt(characterYamlPath, question, otherResponses, mta16Analyses = '', firebaseContext = null, tavilyResults = '') {
   // Get the COMPLETE prompt from Admin Dashboard (or default)
   let fullPrompt = getCompareSystemPrompt();
   
+  // OpenSeek API now supports 20K character limit
+  // No aggressive truncation needed - only truncate if truly excessive
+  const MAX_TOTAL_PROMPT_LENGTH = 19000; // Leave 1K margin for safety
+  
+  // Add Tavily results section if available
+  let tavilySection = '';
+  if (tavilyResults && tavilyResults.trim()) {
+    tavilySection = `
+═══════════════════════════════════════════════════════════════
+TAVILY-SÖKRESULTAT (Aktuell data och källor):
+═══════════════════════════════════════════════════════════════
+
+${tavilyResults}
+`;
+  }
+  
   // Replace placeholders with actual values
-  // The prompt from Admin Dashboard should contain {EXTERNAL_AI_RESPONSES} and {question}
+  // The prompt from Admin Dashboard should contain {EXTERNAL_AI_RESPONSES}, {MTA16_ANALYSES}, {TAVILY_RESULTS}, and {question}
   fullPrompt = fullPrompt.replace(/\{EXTERNAL_AI_RESPONSES\}/g, otherResponses || '(Inga externa svar tillgängliga)');
+  fullPrompt = fullPrompt.replace(/\{MTA16_ANALYSES\}/g, mta16Analyses || '(Ingen MTA-16 analys tillgänglig än)');
+  fullPrompt = fullPrompt.replace(/\{TAVILY_RESULTS\}/g, tavilySection);
   fullPrompt = fullPrompt.replace(/\{question\}/g, question);
   
   // Add Firebase context if available (prepend to prompt)
   if (firebaseContext && firebaseContext.previousQuestions && firebaseContext.previousQuestions.length > 0) {
     fullPrompt = `[Tidigare frågor i samtalet: ${firebaseContext.previousQuestions.slice(-3).join(', ')}]\n\n${fullPrompt}`;
   }
+  
+  // Safety check only for truly excessive prompts (beyond 19K)
+  if (fullPrompt.length > MAX_TOTAL_PROMPT_LENGTH) {
+    console.log(`  ⚠️  Final prompt exceeds 19K chars (${fullPrompt.length}), truncating...`);
+    fullPrompt = fullPrompt.substring(0, MAX_TOTAL_PROMPT_LENGTH) + '\n\n[... prompt trunkerad för att hålla inom API-gränser. Analysera baserat på tillgänglig information ...]';
+  }
+  
+  console.log(`  ✅ Final compare prompt length: ${fullPrompt.length} chars`);
   
   // Return Zero compare character info (no YAML involved)
   const character = {
@@ -512,8 +662,25 @@ export function characterExists(characterPathOrId) {
   return false;
 }
 
+/**
+ * Build MTA-16 analysis prompt for a single external AI response
+ * This is called separately for each response BEFORE the comparison
+ * 
+ * @param {string} question - User's question
+ * @param {string} agent - AI agent name (e.g., "GPT-3.5", "Gemini")
+ * @param {string} response - The AI's response to analyze
+ * @returns {string} - Complete MTA-16 analysis prompt
+ */
+export function buildMTA16AnalysisPrompt(question, agent, response) {
+  return MTA16_ANALYSIS_PROMPT
+    .replace(/\{question\}/g, question)
+    .replace(/\{agent\}/g, agent)
+    .replace(/\{response\}/g, response);
+}
+
 export default {
   buildComparePrompt,
+  buildMTA16AnalysisPrompt,
   characterExists,
   getCompareSystemPrompt,
   saveCompareSystemPrompt,

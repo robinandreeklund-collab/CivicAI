@@ -31,14 +31,169 @@ import {
 import { createLedgerBlock } from '../services/ledgerService.js';
 import { getOpenSeekResponse } from '../services/openseek.js';
 import { 
-  buildComparePrompt, 
+  buildComparePrompt,
+  buildMTA16AnalysisPrompt,
   getCompareSystemPrompt,
   getChunkedIndividualPrompt,
   getChunkedSynthesisPrompt 
 } from '../services/comparePromptBuilder.js';
 import { compressResponsesForPrompt } from '../utils/responseCompressor.js';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const execFileAsync = promisify(execFile);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
+
+/**
+ * Get the correct Python command for the platform
+ * @returns {string} Python command ('python' or 'python3')
+ */
+function getPythonCommand() {
+  // On Windows, use 'python', on Unix-like systems, prefer 'python3'
+  return process.platform === 'win32' ? 'python' : 'python3';
+}
+
+/**
+ * Execute Tavily search using Python ML service
+ * @param {string} query - Search query
+ * @returns {Promise<Object>} - Search results with answer and sources
+ */
+async function executeTavilySearch(query) {
+  try {
+    const pythonScript = path.join(__dirname, '../../ml_service/tavily_cli.py');
+    const pythonCmd = getPythonCommand();
+    
+    // Call the Python script with the query as an argument
+    const { stdout, stderr } = await execFileAsync(pythonCmd, [
+      pythonScript,
+      '--query', query,
+      '--mode', 'search'
+    ], {
+      maxBuffer: 1024 * 1024 * 5, // 5MB buffer for large responses
+      timeout: 30000 // 30 second timeout
+    });
+    
+    if (stderr && stderr.trim()) {
+      console.warn(`⚠️  Tavily search warning: ${stderr.trim()}`);
+    }
+    
+    // Parse the JSON output from Python
+    const result = JSON.parse(stdout);
+    return result;
+  } catch (error) {
+    console.error(`❌ Tavily search error: ${error.message}`);
+    return {
+      answer: null,
+      sources: '',
+      raw_data: null,
+      language: 'sv',
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Let ONESEEK decide what Tavily searches to perform based on external AI responses
+ * @param {string} question - Original question
+ * @param {Array} externalResponses - Responses from external AIs
+ * @param {Array} mta16Analyses - MTA-16 analyses
+ * @returns {Promise<Array>} - List of search queries determined by ONESEEK
+ */
+async function determineSearchQueries(question, externalResponses, mta16Analyses) {
+  console.log('  🤔 Asking ONESEEK to determine necessary searches...');
+  
+  // Build prompt for ONESEEK to determine what to search
+  // With 20K API limit, we can afford more detailed previews
+  const MAX_RESPONSE_PREVIEW = 500;  // Increased from 200
+  const MAX_ANALYSIS_PREVIEW = 300;  // Increased from 150
+  
+  const responseSummary = externalResponses.map(r => 
+    `**${r.agent.toUpperCase()}:** ${r.response.substring(0, MAX_RESPONSE_PREVIEW)}${r.response.length > MAX_RESPONSE_PREVIEW ? '...' : ''}`
+  ).join('\n\n');
+  
+  const analysesSummary = mta16Analyses.map(a => 
+    `**${a.agent.toUpperCase()}:** ${a.analysis.substring(0, MAX_ANALYSIS_PREVIEW)}${a.analysis.length > MAX_ANALYSIS_PREVIEW ? '...' : ''}`
+  ).join('\n\n');
+  
+  const searchDeterminationPrompt = `Du är Zero, ONESEEK:s transparensanalysator.
+
+FRÅGA: ${question}
+
+EXTERNA AI-SVAR:
+${responseSummary}
+
+MTA-16 ANALYSER:
+${analysesSummary}
+
+UPPGIFT:
+Baserat på frågan och de externa AI-svaren, avgör vilka Tavily-sökningar (max 3) som skulle ge mest värde för att:
+1. Verifiera fakta som nämns i svaren
+2. Fylla i saknade aspekter eller perspektiv
+3. Få aktuell data eller statistik som saknas
+4. Kontrollera motsägelser mellan modellerna
+
+För varje sökning, skriv exakt:
+Tavily-sökning: "<din sökfråga här>"
+
+Om inga sökningar behövs (svaren är tillräckliga och konsekventa), skriv endast:
+Inga Tavily-sökningar behövs.
+
+SÖKNINGAR:`;
+
+  // With 20K API limit, we can afford much longer prompts - only truncate if truly excessive
+  const MAX_PROMPT_LENGTH = 18000;  // Increased from 3000
+  let finalPrompt = searchDeterminationPrompt;
+  if (finalPrompt.length > MAX_PROMPT_LENGTH) {
+    console.log(`  ⚠️  Prompt exceeds 18K chars (${finalPrompt.length}), truncating...`);
+    finalPrompt = finalPrompt.substring(0, MAX_PROMPT_LENGTH) + '\n\nSÖKNINGAR:';
+  }
+  
+  console.log(`  📏 Search determination prompt length: ${finalPrompt.length} chars`);
+
+  try {
+    const result = await getOpenSeekResponse(finalPrompt, {
+      profileId: 'zero',
+      systemPrompt: 'Du är Zero. Avgör vilka Tavily-sökningar som behövs. Var specifik och koncis.',
+      max_tokens: 512,
+      temperature: 0.4,
+    });
+    
+    if (!result.response) {
+      console.warn('  ⚠️  ONESEEK returned no response for search determination');
+      return [];
+    }
+    
+    console.log(`  📝 ONESEEK search determination response: ${result.response.substring(0, 200)}...`);
+    
+    // Extract search queries using regex patterns
+    const queries = [];
+    const patterns = [
+      /Tavily-sökning:\s*["\']([^"\']+)["\']/gi,
+      /Tavily-sökning:\s*([^\n]+)/gi,
+    ];
+    
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(result.response)) !== null) {
+        const query = match[1].trim();
+        if (query.length > 10 && !queries.includes(query)) {
+          queries.push(query);
+        }
+      }
+    }
+    
+    // Limit to 3 searches
+    return queries.slice(0, 3);
+  } catch (error) {
+    console.error('  ❌ Error determining search queries:', error.message);
+    return [];
+  }
+}
 
 /**
  * Sanitize AI response text to remove leaked system prompts, sources, and internal context
@@ -453,7 +608,10 @@ function buildFallbackResponse(question, analyses) {
 
 /**
  * Handle Zero Compare Flow
- * Collects external responses, compresses them, and calls OpenSeek with context
+ * 
+ * Collects external responses, gathers analysis data, and calls ONESEEK (Zero) 
+ * which performs MTA-16 analysis (comprehensive multidimensional transparency analysis 
+ * with 16 dimensions, per-round tracking, and sparkline visualizations).
  * 
  * Supports two modes:
  * - chunked: true → Analyze each response individually (slower but more reliable)
@@ -506,56 +664,195 @@ async function handleZeroCompareFlow(req, res) {
       getGrokResponse(question),
     ]);
     
-    // Normalize external responses with pipeline analysis
-    console.log('\n🔬 Step 2: Running MTA-16 analysis on external responses...');
+    // Normalize external responses with analysis data for ONESEEK MTA-16 framework
+    console.log('\n🔬 Step 2: Gathering analysis data for ONESEEK MTA-16 framework...');
     const externalResponses = [];
     
     if (gptResponse.status === 'fulfilled' && gptResponse.value.response) {
       const responseText = gptResponse.value.response;
-      console.log('  Analyzing GPT response...');
+      console.log('  Gathering data for GPT response...');
       const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
       externalResponses.push({
         agent: 'gpt-3.5',
         response: responseText,
         model: gptResponse.value.model,
-        pipelineAnalysis: pipelineAnalysis,
+        pipelineAnalysis: pipelineAnalysis, // Data for ONESEEK MTA-16 framework
       });
     }
     if (geminiResponse.status === 'fulfilled' && geminiResponse.value.response) {
       const responseText = geminiResponse.value.response;
-      console.log('  Analyzing Gemini response...');
+      console.log('  Gathering data for Gemini response...');
       const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
       externalResponses.push({
         agent: 'gemini',
         response: responseText,
         model: geminiResponse.value.model,
-        pipelineAnalysis: pipelineAnalysis,
+        pipelineAnalysis: pipelineAnalysis, // Data for ONESEEK MTA-16 framework
       });
     }
     if (deepseekResponse.status === 'fulfilled' && deepseekResponse.value.response) {
       const responseText = deepseekResponse.value.response;
-      console.log('  Analyzing DeepSeek response...');
+      console.log('  Gathering data for DeepSeek response...');
       const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
       externalResponses.push({
         agent: 'deepseek',
         response: responseText,
         model: deepseekResponse.value.model,
-        pipelineAnalysis: pipelineAnalysis,
+        pipelineAnalysis: pipelineAnalysis, // Data for ONESEEK MTA-16 framework
       });
     }
     if (grokResponse.status === 'fulfilled' && grokResponse.value.response) {
       const responseText = grokResponse.value.response;
-      console.log('  Analyzing Grok response...');
+      console.log('  Gathering data for Grok response...');
       const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
       externalResponses.push({
         agent: 'grok',
         response: responseText,
         model: grokResponse.value.model,
-        pipelineAnalysis: pipelineAnalysis,
+        pipelineAnalysis: pipelineAnalysis, // Data for ONESEEK MTA-16 framework
       });
     }
     
-    console.log(`✅ Collected and analyzed ${externalResponses.length} external responses`);
+    console.log(`✅ Collected analysis data for ${externalResponses.length} external responses - ready for ONESEEK MTA-16`);
+    
+    // Step 2.5: Perform MTA-16 analysis with separate ONESEEK calls
+    console.log('\n🔬 Step 2.5: Performing MTA-16 analysis with ONESEEK...');
+    const mta16Analyses = [];
+    
+    for (const extResponse of externalResponses) {
+      try {
+        console.log(`  Analyzing ${extResponse.agent} with MTA-16...`);
+        
+        // Truncate response if too long to stay within OpenSeek's 20K char limit
+        // The template + question + agent takes ~6000 chars, so we limit response to 8000
+        // This gives us ~14K total, well within the 20K limit
+        const MAX_RESPONSE_LENGTH = 8000;
+        const TRUNCATION_MARKER = '\n\n[... response truncated for analysis ...]\n\n';
+        const KEEP_END_CHARS = 100; // Keep end for conclusions/context
+        const KEEP_START_CHARS = MAX_RESPONSE_LENGTH - TRUNCATION_MARKER.length - KEEP_END_CHARS;
+        
+        let responseToAnalyze = extResponse.response;
+        let truncationNote = '';
+        
+        if (responseToAnalyze.length > MAX_RESPONSE_LENGTH) {
+          responseToAnalyze = 
+            responseToAnalyze.substring(0, KEEP_START_CHARS) + 
+            TRUNCATION_MARKER +
+            responseToAnalyze.substring(responseToAnalyze.length - KEEP_END_CHARS);
+          truncationNote = ` (truncated from ${extResponse.response.length} to ${responseToAnalyze.length} chars)`;
+          console.log(`  ✂️  Response truncated from ${extResponse.response.length} to ${responseToAnalyze.length} chars`);
+        }
+        
+        // Build MTA-16 analysis prompt for this specific response
+        const mta16Prompt = buildMTA16AnalysisPrompt(
+          question,
+          extResponse.agent.toUpperCase(),
+          responseToAnalyze
+        );
+        
+        console.log(`  📝 MTA-16 prompt length: ${mta16Prompt.length} chars${truncationNote}`);
+        console.log(`  📝 Prompt preview: ${mta16Prompt.substring(0, 150)}...`);
+        
+        // Call ONESEEK to perform MTA-16 analysis
+        const mta16Result = await getOpenSeekResponse(mta16Prompt, {
+          profileId: 'zero',
+          systemPrompt: 'Du är Zero, ONESEEK:s transparensanalysator. Utför MTA-16 analys exakt enligt instruktionerna.',
+          max_tokens: 1024, // Enough for detailed analysis
+          temperature: 0.3, // Lower temperature for more consistent analysis
+        });
+        
+        console.log(`  📥 MTA-16 result for ${extResponse.agent}:`, {
+          hasResponse: !!mta16Result.response,
+          responseLength: mta16Result.response?.length || 0,
+          model: mta16Result.model,
+          hasError: !!mta16Result.error,
+          error: mta16Result.error
+        });
+        
+        if (mta16Result.response) {
+          // Store MTA-16 analysis with the response
+          extResponse.mta16Analysis = mta16Result.response;
+          mta16Analyses.push({
+            agent: extResponse.agent,
+            analysis: mta16Result.response,
+          });
+          const isSimulated = mta16Result.model?.includes('simulated') || mta16Result.model?.includes('fallback');
+          console.log(`  ✅ MTA-16 for ${extResponse.agent} complete${isSimulated ? ' (simulated)' : ''} - ${mta16Result.response.length} chars`);
+          console.log(`  📄 First 200 chars of MTA-16: ${mta16Result.response.substring(0, 200)}...`);
+        } else {
+          console.warn(`  ⚠️  MTA-16 failed for ${extResponse.agent} - no response received`);
+          if (mta16Result.error) {
+            console.warn(`     Error: ${mta16Result.error}`);
+          }
+        }
+      } catch (error) {
+        console.error(`  ❌ MTA-16 error for ${extResponse.agent}:`, error.message);
+        console.error(`     Stack: ${error.stack}`);
+      }
+    }
+    
+    console.log(`✅ MTA-16 analysis complete for ${mta16Analyses.length}/${externalResponses.length} responses`);
+    
+    // Step 2.6: Determine and execute Tavily searches
+    console.log('\n🔍 Step 2.6: Determining and executing Tavily searches...');
+    let tavilyResults = [];
+    let tavilyResultsText = '';
+    
+    try {
+      // Let ONESEEK decide what to search
+      const searchQueries = await determineSearchQueries(question, externalResponses, mta16Analyses);
+      
+      if (searchQueries.length > 0) {
+        console.log(`  📋 ONESEEK determined ${searchQueries.length} search(es) needed:`);
+        searchQueries.forEach((q, i) => console.log(`     ${i + 1}. "${q}"`));
+        
+        // Execute searches in parallel
+        const searchPromises = searchQueries.map(async (query, idx) => {
+          console.log(`  🔍 Executing search ${idx + 1}: "${query}"`);
+          const result = await executeTavilySearch(query);
+          
+          if (result.answer) {
+            console.log(`  ✅ Search ${idx + 1} complete - found answer (${result.answer.length} chars)`);
+          } else if (result.error) {
+            console.log(`  ⚠️  Search ${idx + 1} failed: ${result.error}`);
+          } else {
+            console.log(`  ⚠️  Search ${idx + 1} returned no answer`);
+          }
+          
+          return {
+            query,
+            ...result
+          };
+        });
+        
+        tavilyResults = await Promise.all(searchPromises);
+        
+        // Format results for inclusion in prompt
+        tavilyResultsText = tavilyResults
+          .filter(r => r.answer)
+          .map((r, idx) => `**Sökning ${idx + 1}: "${r.query}"**\n\nSvar: ${r.answer}\n\nKällor:\n${r.sources}`)
+          .join('\n\n---\n\n');
+        
+        if (tavilyResultsText) {
+          console.log(`  ✅ Tavily searches complete - ${tavilyResults.filter(r => r.answer).length} successful`);
+        } else {
+          console.log(`  ℹ️  No successful Tavily results to include`);
+        }
+      } else {
+        console.log(`  ℹ️  ONESEEK determined no searches needed`);
+      }
+    } catch (error) {
+      console.error(`  ❌ Tavily search process error: ${error.message}`);
+      console.error(`     Stack: ${error.stack}`);
+    }
+    
+    // Format MTA-16 analyses for the comparison prompt
+    let mta16AnalysesText = '';
+    if (mta16Analyses.length > 0) {
+      mta16AnalysesText = mta16Analyses.map(a => 
+        `**${a.agent.toUpperCase()}:**\n${a.analysis}\n`
+      ).join('\n---\n\n');
+    }
     
     let openSeekResult;
     let compressionMetadata = null;
@@ -625,7 +922,9 @@ async function handleZeroCompareFlow(req, res) {
           null, // No character YAML in compare mode
           question,
           compressionResult.compressed,
-          null // Firebase context - skip for now
+          mta16AnalysesText, // Add MTA-16 analyses
+          null, // Firebase context - skip for now
+          tavilyResultsText // Add Tavily search results
         );
       }
       
@@ -704,7 +1003,10 @@ async function handleZeroCompareFlow(req, res) {
         agent: r.agent,
         response: r.response.substring(0, 500) + (r.response.length > 500 ? '...' : ''),
         model: r.model,
+        pipelineAnalysis: r.pipelineAnalysis, // Keep for backward compatibility
+        mta16Analysis: r.mta16Analysis, // Add ONESEEK's MTA-16 analysis (full text, not truncated)
       })),
+      tavilyResults: tavilyResults.length > 0 ? tavilyResults : undefined, // Include Tavily search results
       compression: compressionMetadata,
       character: {
         id: character.id,
@@ -716,6 +1018,17 @@ async function handleZeroCompareFlow(req, res) {
       processingTimeMs: totalTime,
       analysisMode: chunked ? 'chunked' : 'standard',
     };
+    
+    // Debug logging for MTA-16
+    console.log('\n📊 Response Summary:');
+    console.log(`   External responses: ${externalResponses.length}`);
+    externalResponses.forEach((r, idx) => {
+      console.log(`   [${idx}] ${r.agent}: MTA-16 ${r.mta16Analysis ? '✓' : '✗'} (${r.mta16Analysis?.length || 0} chars)`);
+      if (r.mta16Analysis) {
+        console.log(`       Preview: ${r.mta16Analysis.substring(0, 100)}...`);
+      }
+    });
+    console.log(`   Total MTA-16 analyses in mta16AnalysesText: ${mta16AnalysesText.length} chars`);
     
     // Include individual analyses if chunked mode was used
     if (chunked && openSeekResult.analyses) {

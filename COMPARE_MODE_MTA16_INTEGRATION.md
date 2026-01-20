@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the improvements made to the /7b-zero compare mode, integrating comprehensive MTA-16 analysis and the Tankekedja (thought chain) component.
+This document describes the improvements made to the /7b-zero compare mode, integrating comprehensive MTA-16 analysis (performed by ONESEEK LLM) and the Tankekedja (thought chain) component.
 
 ## Problem Statement
 
@@ -14,11 +14,14 @@ The original request was to:
 
 ### 1. MTA-16 Analysis Component (`frontend/src/components/MTA16Analysis.jsx`)
 
-Created a new component that displays comprehensive multi-dimensional analysis for each external AI response.
+Created a new component that displays ONESEEK's comprehensive multi-dimensional transparency analysis for each external AI response. ONESEEK LLM performs this MTA-16 analysis to provide unprecedented transparency into AI response quality.
 
 #### Key Features:
 
 **16 Analysis Dimensions:**
+
+ONESEEK LLM analyzes responses across these 16 dimensions using its transparency framework:
+
 1. **Factual Accuracy** - Based on bias detection (1 - bias score)
 2. **Sentiment Polarity** - Normalized sentiment from -1 to 1 → 0 to 100%
 3. **Bias Detection** - Overall bias score from pipeline analysis
@@ -82,7 +85,7 @@ Updated the Tankekedja component rendering to support both debate and compare mo
 **Improvements:**
 - Increased width from 320px to 400px to accommodate MTA-16 analysis
 - Added MTA-16 Analysis section with toggle button
-- Shows pipeline analysis availability indicator for each response
+- Shows ONESEEK analysis availability indicator for each response
 - Auto-shows both external responses and Tankekedja when compare mode is enabled
 
 **Toggle Behavior:**
@@ -104,9 +107,9 @@ User Input → handleSubmit() → Compare Mode Check
 ```
 Frontend Request → /api/query (compare: true)
                  → Backend collects external AI responses
-                 → Runs pipeline analysis on each response
-                 → Zero analyzes all responses
-                 → Returns: zero response + external responses with pipelineAnalysis
+                 → ONESEEK analyzes each response via MTA-16 framework
+                 → Zero synthesizes all responses
+                 → Returns: zero response + external responses with MTA-16 analysis
 ```
 
 ### 3. Frontend Display
@@ -115,15 +118,15 @@ Frontend Request → /api/query (compare: true)
 Response Received → Store external responses
                   → Track thinking events
                   → Display Zero's synthesis
-                  → Show MTA-16 analysis panel
+                  → Show ONESEEK MTA-16 analysis panel
                   → Show Tankekedja sidebar
 ```
 
 ## Technical Details
 
-### Data Extraction from Pipeline Analysis
+### Data Extraction for MTA-16 Analysis
 
-The `extractMTA16Metrics()` function maps pipeline analysis data to MTA-16 dimensions:
+ONESEEK's MTA-16 framework uses the `extractMTA16Metrics()` function to organize analysis data into 16 comprehensive dimensions:
 
 ```javascript
 {
@@ -190,7 +193,7 @@ Existing shortcuts still work:
 
 1. **Modular Design** - MTA16Analysis is a reusable component
 2. **Extensible Metrics** - Easy to add new dimensions
-3. **Data-Driven** - Uses existing pipeline analysis (no new backend work needed)
+3. **ONESEEK-Powered** - Uses ONESEEK's transparency framework
 4. **Consistent UI** - Follows existing CivicAI design patterns
 
 ## Testing
@@ -206,12 +209,12 @@ Existing shortcuts still work:
 5. **Observe Tankekedja events**:
    - Should show "Samlar in externa AI-svar..."
    - Should show "Mottog X externa svar"
-   - Should show "MTA-16 analys tillgänglig för X svar"
+   - Should show "ONESEEK MTA-16 analys tillgänglig för X svar"
    - Should show "Zero analyserar externa svar..."
    - Should show "Analys klar"
 6. **Check External Responses Panel**:
    - Should show 4 external AI responses (GPT, Gemini, DeepSeek, Grok)
-   - Should show "✓ Pipeline-analys tillgänglig" for each
+   - Should show "✓ ONESEEK MTA-16 tillgänglig" for each
 7. **Expand MTA-16 Analysis**:
    - Click on any AI's MTA-16 panel
    - Should see all 16 metrics with sparklines
@@ -224,7 +227,7 @@ Existing shortcuts still work:
 ### Expected Results
 
 - ✅ Zero provides objective synthesis of all responses
-- ✅ MTA-16 analysis shows for all external AIs with pipeline data
+- ✅ ONESEEK MTA-16 analysis shows for all external AIs
 - ✅ Sparklines visualize metric trends
 - ✅ Overall quality scores are calculated correctly
 - ✅ Tankekedja shows process transparency
@@ -291,10 +294,10 @@ Existing shortcuts still work:
 
 ## Conclusion
 
-This implementation successfully integrates comprehensive MTA-16 analysis and Tankekedja thought chain transparency into the /7b-zero compare mode, providing users with unprecedented visibility into AI response quality and the analysis process.
+This implementation successfully integrates ONESEEK's comprehensive MTA-16 analysis and Tankekedja thought chain transparency into the /7b-zero compare mode, providing users with unprecedented visibility into AI response quality and the analysis process.
 
 The solution:
-- ✅ Leverages existing pipeline analysis data
+- ✅ Uses ONESEEK LLM's transparency framework
 - ✅ Provides 16-dimensional quality assessment
 - ✅ Includes visual sparkline charts
 - ✅ Integrates Tankekedja for process transparency
@@ -302,4 +305,4 @@ The solution:
 - ✅ Maintains consistency with existing design
 - ✅ Is modular and extensible
 
-Users can now make more informed decisions about AI responses by seeing detailed quality metrics and understanding the entire comparison process.
+Users can now make more informed decisions about AI responses by seeing detailed quality metrics from ONESEEK's MTA-16 analysis framework and understanding the entire comparison process.
